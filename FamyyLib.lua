@@ -283,41 +283,6 @@ function Library:CreateWindow(config)
     Main.Active = true
     Main.Parent = ScreenGui
     
-    -- Custom dragging (works when minimized too)
-    local dragInput, dragStart, startPos
-    local dragging = false
-    
-    local function updateDrag(input)
-        local delta = input.Position - dragStart
-        Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-    
-    Main.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = Main.Position
-            
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
-            end)
-        end
-    end)
-    
-    Main.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
-        end
-    end)
-    
-    UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
-            updateDrag(input)
-        end
-    end)
-    
     local MainCorner = Instance.new("UICorner", Main)
     MainCorner.CornerRadius = Theme.Corners.Window
     
@@ -333,6 +298,47 @@ function Library:CreateWindow(config)
     Container.ClipsDescendants = true
     Container.Parent = Main
     Instance.new("UICorner", Container).CornerRadius = Theme.Corners.Window
+    
+    -- Custom dragging system (works when minimized too)
+    local dragInput, dragStart, startPos
+    local dragging = false
+    
+    local function updateDrag(input)
+        local delta = input.Position - dragStart
+        Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+    
+    local function startDrag(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = Main.Position
+            
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end
+    
+    local function trackDrag(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end
+    
+    -- Listen on both Main and Container for drag events
+    Main.InputBegan:Connect(startDrag)
+    Main.InputChanged:Connect(trackDrag)
+    Container.InputBegan:Connect(startDrag)
+    Container.InputChanged:Connect(trackDrag)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            updateDrag(input)
+        end
+    end)
     
     -- Header
     local Header = Instance.new("Frame")
@@ -409,7 +415,12 @@ function Library:CreateWindow(config)
     MinIcon.TextColor3 = Theme.Colors.Accent
     MinIcon.TextSize = 28
     MinIcon.Visible = false
+    MinIcon.Active = true -- Enable input for dragging
     MinIcon.Parent = Container
+    
+    -- MinIcon also supports dragging
+    MinIcon.InputBegan:Connect(startDrag)
+    MinIcon.InputChanged:Connect(trackDrag)
     
     -- Tab Bar (Carousel style - active tab centered)
     local TabBarContainer = Instance.new("Frame")
@@ -495,7 +506,7 @@ function Library:CreateWindow(config)
     end
     
     -- Double-click on minimized window to expand
-    Main.InputBegan:Connect(function(input)
+    local function checkDoubleClick(input)
         if isMinimized and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
             local now = tick()
             if now - lastClickTime < 0.3 then
@@ -503,7 +514,10 @@ function Library:CreateWindow(config)
             end
             lastClickTime = now
         end
-    end)
+    end
+    
+    Main.InputBegan:Connect(checkDoubleClick)
+    MinIcon.InputBegan:Connect(checkDoubleClick)
     
     connections:Track(MinBtn.MouseButton1Click:Connect(function()
         isMinimized = not isMinimized
@@ -576,9 +590,6 @@ function Library:CreateWindow(config)
             local barWidth = TabBar.AbsoluteSize.X
             if barWidth == 0 then barWidth = 250 end -- Fallback
             
-            -- Calculate sizes - center tab takes priority
-            local centerTabWidth = 120
-            local adjacentTabWidth = 60
             local centerX = barWidth / 2
             
             for i, tabData in ipairs(tabButtons) do
@@ -594,51 +605,57 @@ function Library:CreateWindow(config)
                 
                 local animTime = animate ~= false and 0.2 or 0
                 
+                -- Layout: [prev] [  CENTER  ] [next] - all close together in middle
+                -- Center tab is bigger, adjacent tabs are smaller and closer
+                local centerWidth = 100
+                local adjacentWidth = 55
+                local gap = 8 -- Small gap between tabs
+                
                 if isCenter then
-                    -- Active/centered tab - PROMINENT, with background indicator
-                    local xPos = centerX - (centerTabWidth / 2)
-                    local targetPos = UDim2.new(0, xPos, 0.5, -14)
-                    local targetSize = UDim2.new(0, centerTabWidth, 0, 28)
+                    -- Active/centered tab - BIG and prominent
+                    local xPos = centerX - (centerWidth / 2)
+                    local targetPos = UDim2.new(0, xPos, 0.5, -15)
+                    local targetSize = UDim2.new(0, centerWidth, 0, 30)
                     
                     if animTime > 0 then
                         Tween.Play(btn, {Position = targetPos, Size = targetSize}, animTime)
-                        Tween.Play(btn, {TextColor3 = Theme.Colors.Text, TextTransparency = 0, BackgroundTransparency = 0.85}, animTime)
+                        Tween.Play(btn, {TextColor3 = Theme.Colors.Text, TextTransparency = 0, BackgroundTransparency = 0.8}, animTime)
                     else
                         btn.Position = targetPos
                         btn.Size = targetSize
                         btn.TextColor3 = Theme.Colors.Text
                         btn.TextTransparency = 0
-                        btn.BackgroundTransparency = 0.85
+                        btn.BackgroundTransparency = 0.8
                     end
                     btn.BackgroundColor3 = Theme.Colors.Accent
-                    btn.TextSize = 15
+                    btn.TextSize = 16
                     btn.Font = Enum.Font.GothamBold
                 elseif isAdjacent then
-                    -- Adjacent tabs - small, faded, positioned at edges
+                    -- Adjacent tabs - smaller, close to center
                     local xPos
                     if offset < 0 then
-                        -- Left adjacent - position near left edge
-                        xPos = 5
+                        -- Left adjacent - right next to center tab (left side)
+                        xPos = centerX - (centerWidth / 2) - gap - adjacentWidth
                     else
-                        -- Right adjacent - position near right edge
-                        xPos = barWidth - adjacentTabWidth - 5
+                        -- Right adjacent - right next to center tab (right side)
+                        xPos = centerX + (centerWidth / 2) + gap
                     end
                     
-                    local targetPos = UDim2.new(0, xPos, 0.5, -10)
-                    local targetSize = UDim2.new(0, adjacentTabWidth, 0, 20)
+                    local targetPos = UDim2.new(0, xPos, 0.5, -11)
+                    local targetSize = UDim2.new(0, adjacentWidth, 0, 22)
                     
                     if animTime > 0 then
                         Tween.Play(btn, {Position = targetPos, Size = targetSize}, animTime)
-                        Tween.Play(btn, {TextColor3 = Theme.Colors.TextMuted, TextTransparency = 0.4, BackgroundTransparency = 1}, animTime)
+                        Tween.Play(btn, {TextColor3 = Theme.Colors.TextDim, TextTransparency = 0.3, BackgroundTransparency = 1}, animTime)
                     else
                         btn.Position = targetPos
                         btn.Size = targetSize
-                        btn.TextColor3 = Theme.Colors.TextMuted
-                        btn.TextTransparency = 0.4
+                        btn.TextColor3 = Theme.Colors.TextDim
+                        btn.TextTransparency = 0.3
                         btn.BackgroundTransparency = 1
                     end
-                    btn.TextSize = 11
-                    btn.Font = Enum.Font.Gotham
+                    btn.TextSize = 12
+                    btn.Font = Enum.Font.GothamMedium
                 end
             end
             
