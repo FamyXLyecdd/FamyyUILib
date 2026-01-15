@@ -422,11 +422,17 @@ function Library:CreateWindow(config)
     TabBar.Position = UDim2.new(0, 24, 0, 0)
     TabBar.BackgroundTransparency = 1
     TabBar.ClipsDescendants = true
+    TabBar.Active = true -- Enable input detection
     TabBar.Parent = TabBarContainer
     
     -- Current tab index for carousel
     local currentTabIndex = 1
     local tabButtons = {}
+    
+    -- Drag/swipe state for tab carousel
+    local tabDragging = false
+    local tabDragStart = 0
+    local tabDragThreshold = 50 -- Pixels to swipe before switching
     
     -- Content Frame
     local ContentFrame = Instance.new("Frame")
@@ -548,10 +554,11 @@ function Library:CreateWindow(config)
             Index = tabIndex,
         })
         
-        -- Function to update tab carousel display
-        local function updateTabDisplay()
+        -- Function to update tab carousel display with smooth animations
+        local function updateTabDisplay(animate)
             local totalTabs = #tabButtons
             local barWidth = TabBar.AbsoluteSize.X
+            if barWidth == 0 then barWidth = 200 end -- Fallback
             
             for i, tabData in ipairs(tabButtons) do
                 local btn = tabData.Button
@@ -560,7 +567,7 @@ function Library:CreateWindow(config)
                 -- Calculate position (center = 0 offset)
                 local centerX = barWidth / 2
                 local tabWidth = 80
-                local spacing = 10
+                local spacing = 15
                 
                 -- Position based on offset from current
                 local xPos = centerX + (offset * (tabWidth + spacing)) - (tabWidth / 2)
@@ -571,69 +578,105 @@ function Library:CreateWindow(config)
                 local isVisible = math.abs(offset) <= 2
                 
                 btn.Visible = isVisible
-                btn.Position = UDim2.new(0, xPos, 0.5, -12)
+                
+                local targetPos = UDim2.new(0, xPos, 0.5, -12)
+                local animTime = animate ~= false and 0.25 or 0
                 
                 if isCenter then
                     -- Active/centered tab - full opacity, larger
-                    Tween.Play(btn, {
-                        TextColor3 = Theme.Colors.Text,
-                        TextTransparency = 0,
-                        TextSize = 14,
-                    }, 0.2)
-                    btn.Size = UDim2.new(0, 90, 0, 24)
+                    local targetSize = UDim2.new(0, 90, 0, 26)
+                    if animTime > 0 then
+                        Tween.Play(btn, {Position = targetPos, Size = targetSize}, animTime)
+                        Tween.Play(btn, {TextColor3 = Theme.Colors.Text, TextTransparency = 0}, animTime)
+                    else
+                        btn.Position = targetPos
+                        btn.Size = targetSize
+                        btn.TextColor3 = Theme.Colors.Text
+                        btn.TextTransparency = 0
+                    end
+                    btn.TextSize = 14
+                    btn.Font = Enum.Font.GothamBold
                 elseif isAdjacent then
                     -- Adjacent tabs - dimmed, smaller
-                    Tween.Play(btn, {
-                        TextColor3 = Theme.Colors.TextDim,
-                        TextTransparency = 0.3,
-                        TextSize = 12,
-                    }, 0.2)
-                    btn.Size = UDim2.new(0, 70, 0, 20)
+                    local targetSize = UDim2.new(0, 70, 0, 22)
+                    if animTime > 0 then
+                        Tween.Play(btn, {Position = targetPos, Size = targetSize}, animTime)
+                        Tween.Play(btn, {TextColor3 = Theme.Colors.TextDim, TextTransparency = 0.3}, animTime)
+                    else
+                        btn.Position = targetPos
+                        btn.Size = targetSize
+                        btn.TextColor3 = Theme.Colors.TextDim
+                        btn.TextTransparency = 0.3
+                    end
+                    btn.TextSize = 12
+                    btn.Font = Enum.Font.GothamMedium
                 else
                     -- Far tabs - very dim
-                    Tween.Play(btn, {
-                        TextColor3 = Theme.Colors.TextMuted,
-                        TextTransparency = 0.6,
-                        TextSize = 11,
-                    }, 0.2)
-                    btn.Size = UDim2.new(0, 60, 0, 18)
+                    local targetSize = UDim2.new(0, 60, 0, 20)
+                    if animTime > 0 then
+                        Tween.Play(btn, {Position = targetPos, Size = targetSize}, animTime)
+                        Tween.Play(btn, {TextColor3 = Theme.Colors.TextMuted, TextTransparency = 0.6}, animTime)
+                    else
+                        btn.Position = targetPos
+                        btn.Size = targetSize
+                        btn.TextColor3 = Theme.Colors.TextMuted
+                        btn.TextTransparency = 0.6
+                    end
+                    btn.TextSize = 11
+                    btn.Font = Enum.Font.Gotham
                 end
             end
             
-            -- Update arrow visibility
-            LeftArrow.Visible = currentTabIndex > 1
-            RightArrow.Visible = currentTabIndex < totalTabs
+            -- Update arrow visibility and style
+            LeftArrow.Visible = totalTabs > 1
+            RightArrow.Visible = totalTabs > 1
             
-            -- Update arrow colors
-            LeftArrow.TextColor3 = currentTabIndex > 1 and Theme.Colors.Text or Theme.Colors.TextMuted
-            RightArrow.TextColor3 = currentTabIndex < totalTabs and Theme.Colors.Text or Theme.Colors.TextMuted
+            -- Update arrow colors based on whether they can navigate
+            local canGoLeft = currentTabIndex > 1
+            local canGoRight = currentTabIndex < totalTabs
+            
+            LeftArrow.TextColor3 = canGoLeft and Theme.Colors.Text or Theme.Colors.TextMuted
+            LeftArrow.TextTransparency = canGoLeft and 0 or 0.5
+            RightArrow.TextColor3 = canGoRight and Theme.Colors.Text or Theme.Colors.TextMuted
+            RightArrow.TextTransparency = canGoRight and 0 or 0.5
         end
         
-        -- Function to switch to this tab
+        -- Function to switch to this tab with direction-aware animation
         local function switchToTab(index)
             if index < 1 or index > #tabButtons then return end
             
+            local previousIndex = currentTabIndex
+            local direction = index > previousIndex and 1 or -1 -- 1 = right, -1 = left
             currentTabIndex = index
             
-            -- Hide all pages
+            -- Hide all pages with fade
             for _, child in ipairs(ContentFrame:GetChildren()) do
-                if child:IsA("ScrollingFrame") then child.Visible = false end
+                if child:IsA("ScrollingFrame") and child.Visible then
+                    -- Slide out in opposite direction
+                    Tween.Play(child, {Position = UDim2.new(-0.05 * direction, 0, 0, 0)}, 0.15)
+                    task.delay(0.15, function()
+                        child.Visible = false
+                        child.Position = UDim2.new(0, 0, 0, 0)
+                    end)
+                end
             end
             
-            -- Show selected page
+            -- Show selected page with slide-in animation
             local pageName = "Tab_" .. tabButtons[index].Name
-            local page = ContentFrame:FindFirstChild(pageName)
-            if page then
-                page.Visible = true
-                page.Position = UDim2.new(0.02, 0, 0, 0)
-                Tween.Play(page, {Position = UDim2.new(0, 0, 0, 0)}, 0.2)
+            local pageToShow = ContentFrame:FindFirstChild(pageName)
+            if pageToShow then
+                task.delay(0.1, function()
+                    pageToShow.Position = UDim2.new(0.05 * direction, 0, 0, 0)
+                    pageToShow.Visible = true
+                    Tween.Play(pageToShow, {Position = UDim2.new(0, 0, 0, 0)}, 0.2)
+                end)
             end
             
             -- Update active tab reference
             self.ActiveTab = tabButtons[index].Button
             
-            -- Update display
-            updateTabDisplay()
+            -- Update display with animation
+            updateTabDisplay(true)
         end
         
         -- Store switch function for arrows
@@ -704,6 +747,42 @@ function Library:CreateWindow(config)
             end))
             connections:Track(RightArrow.MouseLeave:Connect(function()
                 RightArrow.TextColor3 = currentTabIndex < #tabButtons and Theme.Colors.Text or Theme.Colors.TextMuted
+            end))
+            
+            -- Drag/swipe support for tab carousel
+            local dragStartX = 0
+            local isDraggingTabs = false
+            
+            connections:Track(TabBar.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    isDraggingTabs = true
+                    dragStartX = input.Position.X
+                end
+            end))
+            
+            connections:Track(UserInputService.InputChanged:Connect(function(input)
+                if isDraggingTabs and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                    local deltaX = input.Position.X - dragStartX
+                    
+                    -- Check if dragged past threshold
+                    if math.abs(deltaX) >= tabDragThreshold then
+                        if deltaX > 0 and currentTabIndex > 1 then
+                            -- Swiped right = go to previous tab
+                            switchToTab(currentTabIndex - 1)
+                            isDraggingTabs = false
+                        elseif deltaX < 0 and currentTabIndex < #tabButtons then
+                            -- Swiped left = go to next tab
+                            switchToTab(currentTabIndex + 1)
+                            isDraggingTabs = false
+                        end
+                    end
+                end
+            end))
+            
+            connections:Track(UserInputService.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    isDraggingTabs = false
+                end
             end))
         end
         
@@ -1047,9 +1126,9 @@ function Library:CreateWindow(config)
                 local style = cfg.Style or "secondary"
                 
                 local styles = {
-                    primary = {bg = Theme.Colors.Accent, hover = Theme.Colors.AccentHover, text = Theme.Colors.Text},
-                    secondary = {bg = Theme.Colors.Surface, hover = Theme.Colors.SurfaceHover, text = Theme.Colors.Text},
-                    danger = {bg = Theme.Colors.Surface, hover = Theme.Colors.Error, text = Theme.Colors.Error, textHover = Theme.Colors.Text},
+                    primary = {bg = Theme.Colors.Accent, hover = Theme.Colors.AccentHover, text = Theme.Colors.Text, stroke = Theme.Colors.Accent},
+                    secondary = {bg = Theme.Colors.Card, hover = Theme.Colors.CardHover, text = Theme.Colors.Text, stroke = Theme.Colors.TextDim},
+                    danger = {bg = Theme.Colors.Card, hover = Theme.Colors.Error, text = Theme.Colors.Error, textHover = Theme.Colors.Text, stroke = Theme.Colors.Error},
                 }
                 local s = styles[style] or styles.secondary
                 
@@ -1064,14 +1143,27 @@ function Library:CreateWindow(config)
                 btn.Parent = contentContainer
                 Instance.new("UICorner", btn).CornerRadius = Theme.Corners.Button
                 
+                -- Add visible border/stroke
+                local btnStroke = Instance.new("UIStroke", btn)
+                btnStroke.Color = s.stroke
+                btnStroke.Thickness = 1
+                btnStroke.Transparency = 0.5
+                
                 connections:Track(btn.MouseEnter:Connect(function()
                     Tween.Play(btn, {BackgroundColor3 = s.hover}, 0.15)
+                    Tween.Play(btnStroke, {Transparency = 0, Color = style == "primary" and Theme.Colors.AccentHover or Theme.Colors.Accent}, 0.15)
                     if s.textHover then Tween.Play(btn, {TextColor3 = s.textHover}, 0.15) end
                 end))
                 connections:Track(btn.MouseLeave:Connect(function()
                     Tween.Play(btn, {BackgroundColor3 = s.bg, TextColor3 = s.text}, 0.15)
+                    Tween.Play(btnStroke, {Transparency = 0.5, Color = s.stroke}, 0.15)
                 end))
                 connections:Track(btn.MouseButton1Click:Connect(function()
+                    -- Click animation
+                    Tween.Play(btn, {BackgroundColor3 = Theme.Colors.Accent}, 0.05)
+                    task.delay(0.1, function()
+                        Tween.Play(btn, {BackgroundColor3 = s.bg}, 0.15)
+                    end)
                     local success, err = Safety.Call(callback)
                     if not success then warn("[FamyyPrivate] Button error:", err) end
                 end))
