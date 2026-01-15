@@ -641,41 +641,38 @@ function Library:CreateWindow(config)
             RightArrow.TextTransparency = canGoRight and 0 or 0.5
         end
         
-        -- Function to switch to this tab with direction-aware animation
+        -- Function to switch to this tab with clean animation
         local function switchToTab(index)
             if index < 1 or index > #tabButtons then return end
+            if index == currentTabIndex then return end -- Don't switch to same tab
             
             local previousIndex = currentTabIndex
-            local direction = index > previousIndex and 1 or -1 -- 1 = right, -1 = left
             currentTabIndex = index
             
-            -- Hide all pages with fade
-            for _, child in ipairs(ContentFrame:GetChildren()) do
-                if child:IsA("ScrollingFrame") and child.Visible then
-                    -- Slide out in opposite direction
-                    Tween.Play(child, {Position = UDim2.new(-0.05 * direction, 0, 0, 0)}, 0.15)
-                    task.delay(0.15, function()
-                        child.Visible = false
-                        child.Position = UDim2.new(0, 0, 0, 0)
-                    end)
-                end
-            end
-            
-            -- Show selected page with slide-in animation
+            -- Get the page to show
             local pageName = "Tab_" .. tabButtons[index].Name
             local pageToShow = ContentFrame:FindFirstChild(pageName)
-            if pageToShow then
-                task.delay(0.1, function()
-                    pageToShow.Position = UDim2.new(0.05 * direction, 0, 0, 0)
-                    pageToShow.Visible = true
-                    Tween.Play(pageToShow, {Position = UDim2.new(0, 0, 0, 0)}, 0.2)
-                end)
+            
+            -- Hide all other pages immediately, show new one
+            for _, child in ipairs(ContentFrame:GetChildren()) do
+                if child:IsA("ScrollingFrame") then
+                    if child.Name == pageName then
+                        -- This is the page to show - simple fade in
+                        child.Visible = true
+                        child.BackgroundTransparency = 1
+                        -- Reset scroll position
+                        child.CanvasPosition = Vector2.new(0, 0)
+                    else
+                        -- Hide other pages
+                        child.Visible = false
+                    end
+                end
             end
             
             -- Update active tab reference
             self.ActiveTab = tabButtons[index].Button
             
-            -- Update display with animation
+            -- Update tab carousel display with animation
             updateTabDisplay(true)
         end
         
@@ -768,12 +765,16 @@ function Library:CreateWindow(config)
                     if math.abs(deltaX) >= tabDragThreshold then
                         if deltaX > 0 and currentTabIndex > 1 then
                             -- Swiped right = go to previous tab
-                            switchToTab(currentTabIndex - 1)
                             isDraggingTabs = false
+                            if Window._switchToTab then
+                                Window._switchToTab(currentTabIndex - 1)
+                            end
                         elseif deltaX < 0 and currentTabIndex < #tabButtons then
                             -- Swiped left = go to next tab
-                            switchToTab(currentTabIndex + 1)
                             isDraggingTabs = false
+                            if Window._switchToTab then
+                                Window._switchToTab(currentTabIndex + 1)
+                            end
                         end
                     end
                 end
