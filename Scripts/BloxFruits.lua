@@ -24,7 +24,7 @@ pcall(function()
 end)
 
 -- ============================================================================
--- SERVICES
+-- SERVICES (with pcall for Solara compatibility)
 -- ============================================================================
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
@@ -33,9 +33,14 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local TeleportService = game:GetService("TeleportService")
-local VirtualUser = game:GetService("VirtualUser")
 local Lighting = game:GetService("Lighting")
 local HttpService = game:GetService("HttpService")
+
+-- VirtualUser may not exist in some executors
+local VirtualUser = nil
+pcall(function()
+    VirtualUser = game:GetService("VirtualUser")
+end)
 
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
@@ -381,13 +386,41 @@ local function acceptQuest(questData)
 end
 
 -- ============================================================================
--- ATTACK FUNCTION (VirtualUser method from working script)
+-- ATTACK FUNCTION (Multiple methods for compatibility)
 -- ============================================================================
 
 local function Attack()
+    -- Method 1: VirtualUser (best for most executors)
+    if VirtualUser then
+        pcall(function()
+            VirtualUser:CaptureController()
+            VirtualUser:Button1Down(Vector2.new(0, 0))
+        end)
+    end
+    
+    -- Method 2: Tool activation (fallback)
     pcall(function()
-        VirtualUser:CaptureController()
-        VirtualUser:Button1Down(Vector2.new(0, 0))
+        local char = getCharacter()
+        if char then
+            local tool = char:FindFirstChildOfClass("Tool")
+            if tool then
+                tool:Activate()
+            end
+        end
+    end)
+    
+    -- Method 3: Mouse click simulation via remote
+    pcall(function()
+        local char = getCharacter()
+        if char then
+            local tool = char:FindFirstChildOfClass("Tool")
+            if tool then
+                local remote = tool:FindFirstChild("RemoteEvent") or tool:FindFirstChildOfClass("RemoteEvent")
+                if remote then
+                    remote:FireServer()
+                end
+            end
+        end
     end)
 end
 
