@@ -13,26 +13,25 @@ local Sea1Id = 2753915549
 local Sea2Id = 4442272183
 local Sea3Id = 7449423635
 
-local GITHUB_BASE = "https://raw.githubusercontent.com/FamyXLyecdd/FamyyUILib/main/Scripts/"
-
 local function LoadScript(fileName)
-    local url = GITHUB_BASE .. fileName
     local success, result = pcall(function()
-        return game:HttpGet(url)
+        return readfile("Scripts/" .. fileName)
     end)
     
+    if not success then
+        -- Try without "Scripts/" prefix if folder structure differs
+        success, result = pcall(function()
+            return readfile(fileName)
+        end)
+    end
+    
     if success then
-        local loadFunc, loadErr = loadstring(result)
-        if loadFunc then
-            loadFunc()
-        else
-            warn("Famyy Loader Error: Syntax error in " .. fileName .. ": " .. tostring(loadErr))
-        end
+        loadstring(result)()
     else
-        warn("Famyy Loader Error: Could not fetch " .. fileName .. " from GitHub.")
+        warn("Famyy Loader Error: Could not find " .. fileName)
         game.StarterGui:SetCore("SendNotification", {
             Title = "Famyy Private",
-            Text = "Failed to load script: " .. fileName,
+            Text = "Script file not found: " .. fileName,
             Duration = 5
         })
     end
