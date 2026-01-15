@@ -7,7 +7,7 @@
     ╚═╝     ╚══════╝ ╚═════╝  ╚═════╝    ╚═╝       ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═══╝  ╚═╝  ╚═╝   ╚═╝   ╚══════╝
     
     FAMYY PRIVATE - Main Loader
-    Version: 9.1
+    Version: 9.2
     
     Single script to load everything. Auto-detects game and loads appropriate script.
     
@@ -27,6 +27,9 @@ local GAMES = {
     [2753915549] = {Script = "Scripts/BloxFruits.lua", Name = "Blox Fruits (First Sea)"},
     [4442272183] = {Script = "Scripts/BloxFruits.lua", Name = "Blox Fruits (Second Sea)"},
     [7449423635] = {Script = "Scripts/BloxFruits.lua", Name = "Blox Fruits (Third Sea)"},
+    
+    -- Waste Time
+    [129548273770183] = {Script = "Scripts/WasteTime.lua", Name = "Waste Time"},
     
     -- Add more games here:
     -- [PlaceId] = {Script = "Scripts/GameName.lua", Name = "Display Name"},
@@ -114,7 +117,7 @@ local function main()
     
     print("")
     print("╔══════════════════════════════════════════╗")
-    print("║         FAMYY PRIVATE v9.1               ║")
+    print("║         FAMYY PRIVATE v9.2               ║")
     print("╠══════════════════════════════════════════╣")
     print("║  Game: " .. gameName:sub(1, 32) .. string.rep(" ", math.max(0, 32 - #gameName)) .. " ║")
     print("║  PlaceId: " .. placeId .. string.rep(" ", math.max(0, 29 - #tostring(placeId))) .. " ║")
