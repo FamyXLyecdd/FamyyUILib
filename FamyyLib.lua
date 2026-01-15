@@ -785,6 +785,30 @@ function Library:CreateWindow(config)
                     isDraggingTabs = false
                 end
             end))
+            
+            -- Mouse scroll wheel support for tab carousel
+            connections:Track(TabBarContainer.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseWheel then
+                    -- Removed - handled by InputChanged
+                end
+            end))
+            
+            connections:Track(TabBarContainer.InputChanged:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseWheel then
+                    local scrollDir = input.Position.Z
+                    if scrollDir > 0 and currentTabIndex > 1 then
+                        -- Scroll up = previous tab
+                        if Window._switchToTab then
+                            Window._switchToTab(currentTabIndex - 1)
+                        end
+                    elseif scrollDir < 0 and currentTabIndex < #tabButtons then
+                        -- Scroll down = next tab
+                        if Window._switchToTab then
+                            Window._switchToTab(currentTabIndex + 1)
+                        end
+                    end
+                end
+            end))
         end
         
         -- Update display after adding tab
@@ -1038,8 +1062,8 @@ function Library:CreateWindow(config)
                 valLbl.Parent = topRow
                 
                 local track = Instance.new("Frame")
-                track.Size = UDim2.new(1, 0, 0, 8)
-                track.Position = UDim2.new(0, 0, 0, 28)
+                track.Size = UDim2.new(1, -16, 0, 8)
+                track.Position = UDim2.new(0, 8, 0, 28)
                 track.BackgroundColor3 = Theme.Colors.Surface
                 track.Parent = frame
                 Instance.new("UICorner", track).CornerRadius = Theme.Corners.Toggle
@@ -1061,8 +1085,8 @@ function Library:CreateWindow(config)
                 
                 -- Invisible button overlay to capture input and prevent drag propagation
                 local sliderHitbox = Instance.new("TextButton")
-                sliderHitbox.Size = UDim2.new(1, 0, 0, 20)
-                sliderHitbox.Position = UDim2.new(0, 0, 0, 22)
+                sliderHitbox.Size = UDim2.new(1, -16, 0, 20)
+                sliderHitbox.Position = UDim2.new(0, 8, 0, 22)
                 sliderHitbox.BackgroundTransparency = 1
                 sliderHitbox.Text = ""
                 sliderHitbox.Active = true -- Prevents input from going to parent (Main frame)
