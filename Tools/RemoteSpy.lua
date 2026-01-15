@@ -1,9 +1,9 @@
 --[[
-    FAMYY PRIVATE - Remote Spy
-    Version: 1.0
+    FAMYY PRIVATE - Remote Browser
+    Version: 2.0
     
-    Captures remotes ONLY when YOU perform actions.
-    Click a button, convert eons, buy something - it logs the remote call.
+    Works on ALL executors including Solara!
+    Lists all remotes, lets you explore and test them.
     
     Usage:
         loadstring(game:HttpGet("https://raw.githubusercontent.com/FamyXLyecdd/FamyyUILib/main/Tools/RemoteSpy.lua"))()
@@ -17,80 +17,49 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
 local LocalPlayer = Players.LocalPlayer
-
--- ============================================================================
--- SETTINGS
--- ============================================================================
-
-local Settings = {
-    Enabled = true,
-    MaxLogs = 100,
-    IgnoreList = {}, -- Remote names to ignore
-    ShowArgs = true,
-    AutoCopy = false,
-}
 
 -- ============================================================================
 -- STORAGE
 -- ============================================================================
 
-local CapturedRemotes = {}
-local Hooks = {}
-local OriginalFunctions = {}
+local AllRemotes = {}
+local SelectedRemote = nil
 
 -- ============================================================================
 -- UTILITIES
 -- ============================================================================
 
-local function deepCopy(t)
-    if type(t) ~= "table" then return t end
-    local copy = {}
-    for k, v in pairs(t) do
-        copy[k] = deepCopy(v)
-    end
-    return copy
-end
-
 local function formatValue(v, depth)
     depth = depth or 0
-    if depth > 3 then return "..." end
+    if depth > 2 then return "..." end
     
     local t = typeof(v)
     
     if t == "string" then
-        return '"' .. v:gsub('"', '\\"'):sub(1, 100) .. '"'
-    elseif t == "number" then
-        return tostring(v)
-    elseif t == "boolean" then
+        return '"' .. v:sub(1, 50) .. '"'
+    elseif t == "number" or t == "boolean" then
         return tostring(v)
     elseif t == "nil" then
         return "nil"
     elseif t == "Instance" then
         return v:GetFullName()
     elseif t == "Vector3" then
-        return string.format("Vector3.new(%.2f, %.2f, %.2f)", v.X, v.Y, v.Z)
+        return string.format("Vector3.new(%.1f, %.1f, %.1f)", v.X, v.Y, v.Z)
     elseif t == "CFrame" then
-        return string.format("CFrame.new(%.2f, %.2f, %.2f)", v.X, v.Y, v.Z)
-    elseif t == "Color3" then
-        return string.format("Color3.new(%.2f, %.2f, %.2f)", v.R, v.G, v.B)
-    elseif t == "UDim2" then
-        return string.format("UDim2.new(%.2f, %d, %.2f, %d)", v.X.Scale, v.X.Offset, v.Y.Scale, v.Y.Offset)
-    elseif t == "EnumItem" then
-        return tostring(v)
+        return string.format("CFrame.new(%.1f, %.1f, %.1f)", v.X, v.Y, v.Z)
     elseif t == "table" then
         local parts = {}
         local count = 0
         for k, val in pairs(v) do
             count = count + 1
-            if count > 10 then
+            if count > 5 then
                 table.insert(parts, "...")
                 break
             end
-            local key = type(k) == "string" and k or "[" .. formatValue(k, depth + 1) .. "]"
-            table.insert(parts, key .. " = " .. formatValue(val, depth + 1))
+            table.insert(parts, tostring(k) .. "=" .. formatValue(val, depth + 1))
         end
         return "{" .. table.concat(parts, ", ") .. "}"
     else
@@ -98,30 +67,52 @@ local function formatValue(v, depth)
     end
 end
 
-local function formatArgs(args)
-    local formatted = {}
-    for i, v in ipairs(args) do
-        table.insert(formatted, formatValue(v))
-    end
-    return table.concat(formatted, ", ")
-end
+-- ============================================================================
+-- SCAN REMOTES
+-- ============================================================================
 
-local function generateCode(remotePath, remoteType, args)
-    local code = ""
+local function scanRemotes()
+    AllRemotes = {}
     
-    if remoteType == "RemoteEvent" then
-        code = string.format('game:GetService("ReplicatedStorage")%s:FireServer(%s)', 
-            remotePath:gsub("ReplicatedStorage", ""), 
-            formatArgs(args))
-    elseif remoteType == "RemoteFunction" then
-        code = string.format('game:GetService("ReplicatedStorage")%s:InvokeServer(%s)', 
-            remotePath:gsub("ReplicatedStorage", ""), 
-            formatArgs(args))
-    elseif remoteType == "BindableEvent" then
-        code = string.format('--%s:Fire(%s)', remotePath, formatArgs(args))
+    local function scan(parent, path)
+        for _, child in pairs(parent:GetChildren()) do
+            local childPath = path .. "." .. child.Name
+            
+            if child:IsA("RemoteEvent") then
+                table.insert(AllRemotes, {
+                    Instance = child,
+                    Name = child.Name,
+                    Path = childPath,
+                    Type = "RemoteEvent",
+                    FullName = child:GetFullName()
+                })
+            elseif child:IsA("RemoteFunction") then
+                table.insert(AllRemotes, {
+                    Instance = child,
+                    Name = child.Name,
+                    Path = childPath,
+                    Type = "RemoteFunction",
+                    FullName = child:GetFullName()
+                })
+            end
+            
+            -- Recurse
+            if #child:GetChildren() > 0 then
+                scan(child, childPath)
+            end
+        end
     end
     
-    return code
+    -- Scan common locations
+    pcall(function() scan(ReplicatedStorage, "ReplicatedStorage") end)
+    pcall(function() scan(game:GetService("Workspace"), "Workspace") end)
+    pcall(function() scan(LocalPlayer.PlayerScripts, "PlayerScripts") end)
+    pcall(function() scan(LocalPlayer.PlayerGui, "PlayerGui") end)
+    
+    -- Sort by name
+    table.sort(AllRemotes, function(a, b) return a.Name < b.Name end)
+    
+    return AllRemotes
 end
 
 -- ============================================================================
@@ -130,12 +121,19 @@ end
 
 local function createGUI()
     -- Remove old GUI
-    if CoreGui:FindFirstChild("FamyyRemoteSpy") then
-        CoreGui:FindFirstChild("FamyyRemoteSpy"):Destroy()
-    end
+    pcall(function()
+        if CoreGui:FindFirstChild("FamyyRemoteBrowser") then
+            CoreGui:FindFirstChild("FamyyRemoteBrowser"):Destroy()
+        end
+    end)
+    pcall(function()
+        if LocalPlayer.PlayerGui:FindFirstChild("FamyyRemoteBrowser") then
+            LocalPlayer.PlayerGui:FindFirstChild("FamyyRemoteBrowser"):Destroy()
+        end
+    end)
     
     local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "FamyyRemoteSpy"
+    ScreenGui.Name = "FamyyRemoteBrowser"
     ScreenGui.ResetOnSpawn = false
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     
@@ -150,8 +148,8 @@ local function createGUI()
     -- Main Frame
     local MainFrame = Instance.new("Frame")
     MainFrame.Name = "MainFrame"
-    MainFrame.Size = UDim2.new(0, 500, 0, 400)
-    MainFrame.Position = UDim2.new(0.5, -250, 0.5, -200)
+    MainFrame.Size = UDim2.new(0, 550, 0, 450)
+    MainFrame.Position = UDim2.new(0.5, -275, 0.5, -225)
     MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
     MainFrame.BorderSizePixel = 0
     MainFrame.Parent = ScreenGui
@@ -173,38 +171,15 @@ local function createGUI()
     TitleCorner.Parent = TitleBar
     
     local TitleLabel = Instance.new("TextLabel")
-    TitleLabel.Size = UDim2.new(1, -100, 1, 0)
+    TitleLabel.Size = UDim2.new(1, -40, 1, 0)
     TitleLabel.Position = UDim2.new(0, 10, 0, 0)
     TitleLabel.BackgroundTransparency = 1
-    TitleLabel.Text = "FAMYY REMOTE SPY - DO ACTIONS TO CAPTURE"
+    TitleLabel.Text = "FAMYY REMOTE BROWSER - " .. #AllRemotes .. " REMOTES FOUND"
     TitleLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
     TitleLabel.TextSize = 14
     TitleLabel.Font = Enum.Font.GothamBold
     TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
     TitleLabel.Parent = TitleBar
-    
-    -- Status indicator
-    local StatusDot = Instance.new("Frame")
-    StatusDot.Name = "StatusDot"
-    StatusDot.Size = UDim2.new(0, 10, 0, 10)
-    StatusDot.Position = UDim2.new(1, -80, 0.5, -5)
-    StatusDot.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
-    StatusDot.Parent = TitleBar
-    
-    local StatusCorner = Instance.new("UICorner")
-    StatusCorner.CornerRadius = UDim.new(1, 0)
-    StatusCorner.Parent = StatusDot
-    
-    local StatusLabel = Instance.new("TextLabel")
-    StatusLabel.Size = UDim2.new(0, 60, 1, 0)
-    StatusLabel.Position = UDim2.new(1, -65, 0, 0)
-    StatusLabel.BackgroundTransparency = 1
-    StatusLabel.Text = "RECORDING"
-    StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
-    StatusLabel.TextSize = 11
-    StatusLabel.Font = Enum.Font.GothamBold
-    StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-    StatusLabel.Parent = TitleBar
     
     -- Close button
     local CloseBtn = Instance.new("TextButton")
@@ -221,23 +196,129 @@ local function createGUI()
     CloseBtnCorner.CornerRadius = UDim.new(0, 4)
     CloseBtnCorner.Parent = CloseBtn
     
-    -- Button container
-    local ButtonContainer = Instance.new("Frame")
-    ButtonContainer.Size = UDim2.new(1, -20, 0, 30)
-    ButtonContainer.Position = UDim2.new(0, 10, 0, 40)
-    ButtonContainer.BackgroundTransparency = 1
-    ButtonContainer.Parent = MainFrame
+    CloseBtn.MouseButton1Click:Connect(function()
+        ScreenGui:Destroy()
+    end)
     
-    local function createButton(text, pos, color)
+    -- Search Box
+    local SearchBox = Instance.new("TextBox")
+    SearchBox.Size = UDim2.new(1, -20, 0, 30)
+    SearchBox.Position = UDim2.new(0, 10, 0, 40)
+    SearchBox.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    SearchBox.Text = ""
+    SearchBox.PlaceholderText = "Search remotes... (e.g. 'click', 'buy', 'convert')"
+    SearchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    SearchBox.PlaceholderColor3 = Color3.fromRGB(100, 100, 100)
+    SearchBox.TextSize = 12
+    SearchBox.Font = Enum.Font.Gotham
+    SearchBox.ClearTextOnFocus = false
+    SearchBox.Parent = MainFrame
+    
+    local SearchCorner = Instance.new("UICorner")
+    SearchCorner.CornerRadius = UDim.new(0, 4)
+    SearchCorner.Parent = SearchBox
+    
+    -- Left Panel (Remote List)
+    local LeftPanel = Instance.new("Frame")
+    LeftPanel.Size = UDim2.new(0.5, -15, 1, -125)
+    LeftPanel.Position = UDim2.new(0, 10, 0, 75)
+    LeftPanel.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
+    LeftPanel.BorderSizePixel = 0
+    LeftPanel.Parent = MainFrame
+    
+    local LeftCorner = Instance.new("UICorner")
+    LeftCorner.CornerRadius = UDim.new(0, 6)
+    LeftCorner.Parent = LeftPanel
+    
+    local RemoteScroll = Instance.new("ScrollingFrame")
+    RemoteScroll.Size = UDim2.new(1, 0, 1, 0)
+    RemoteScroll.BackgroundTransparency = 1
+    RemoteScroll.ScrollBarThickness = 4
+    RemoteScroll.ScrollBarImageColor3 = Color3.fromRGB(255, 100, 100)
+    RemoteScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    RemoteScroll.Parent = LeftPanel
+    
+    local RemoteLayout = Instance.new("UIListLayout")
+    RemoteLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    RemoteLayout.Padding = UDim.new(0, 2)
+    RemoteLayout.Parent = RemoteScroll
+    
+    local RemotePadding = Instance.new("UIPadding")
+    RemotePadding.PaddingTop = UDim.new(0, 5)
+    RemotePadding.PaddingBottom = UDim.new(0, 5)
+    RemotePadding.PaddingLeft = UDim.new(0, 5)
+    RemotePadding.PaddingRight = UDim.new(0, 5)
+    RemotePadding.Parent = RemoteScroll
+    
+    -- Right Panel (Details)
+    local RightPanel = Instance.new("Frame")
+    RightPanel.Size = UDim2.new(0.5, -15, 1, -125)
+    RightPanel.Position = UDim2.new(0.5, 5, 0, 75)
+    RightPanel.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
+    RightPanel.BorderSizePixel = 0
+    RightPanel.Parent = MainFrame
+    
+    local RightCorner = Instance.new("UICorner")
+    RightCorner.CornerRadius = UDim.new(0, 6)
+    RightCorner.Parent = RightPanel
+    
+    -- Details Title
+    local DetailsTitle = Instance.new("TextLabel")
+    DetailsTitle.Size = UDim2.new(1, -10, 0, 25)
+    DetailsTitle.Position = UDim2.new(0, 5, 0, 5)
+    DetailsTitle.BackgroundTransparency = 1
+    DetailsTitle.Text = "SELECT A REMOTE"
+    DetailsTitle.TextColor3 = Color3.fromRGB(255, 200, 100)
+    DetailsTitle.TextSize = 12
+    DetailsTitle.Font = Enum.Font.GothamBold
+    DetailsTitle.TextXAlignment = Enum.TextXAlignment.Left
+    DetailsTitle.Parent = RightPanel
+    
+    -- Details Info
+    local DetailsInfo = Instance.new("TextLabel")
+    DetailsInfo.Size = UDim2.new(1, -10, 0, 80)
+    DetailsInfo.Position = UDim2.new(0, 5, 0, 30)
+    DetailsInfo.BackgroundTransparency = 1
+    DetailsInfo.Text = "Click a remote on the left to see details"
+    DetailsInfo.TextColor3 = Color3.fromRGB(150, 150, 150)
+    DetailsInfo.TextSize = 10
+    DetailsInfo.Font = Enum.Font.Code
+    DetailsInfo.TextXAlignment = Enum.TextXAlignment.Left
+    DetailsInfo.TextYAlignment = Enum.TextYAlignment.Top
+    DetailsInfo.TextWrapped = true
+    DetailsInfo.Parent = RightPanel
+    
+    -- Code Box
+    local CodeBox = Instance.new("TextBox")
+    CodeBox.Size = UDim2.new(1, -10, 0, 80)
+    CodeBox.Position = UDim2.new(0, 5, 0, 115)
+    CodeBox.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    CodeBox.Text = "-- Code will appear here"
+    CodeBox.TextColor3 = Color3.fromRGB(100, 255, 100)
+    CodeBox.TextSize = 10
+    CodeBox.Font = Enum.Font.Code
+    CodeBox.TextXAlignment = Enum.TextXAlignment.Left
+    CodeBox.TextYAlignment = Enum.TextYAlignment.Top
+    CodeBox.TextWrapped = true
+    CodeBox.ClearTextOnFocus = false
+    CodeBox.MultiLine = true
+    CodeBox.Parent = RightPanel
+    
+    local CodeCorner = Instance.new("UICorner")
+    CodeCorner.CornerRadius = UDim.new(0, 4)
+    CodeCorner.Parent = CodeBox
+    
+    -- Buttons
+    local function createBtn(text, posY, color)
         local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(0, 80, 1, 0)
-        btn.Position = pos
+        btn.Size = UDim2.new(0.48, 0, 0, 28)
+        btn.Position = posY
         btn.BackgroundColor3 = color
         btn.Text = text
         btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        btn.TextSize = 12
+        btn.TextSize = 11
         btn.Font = Enum.Font.GothamBold
-        btn.Parent = ButtonContainer
+        btn.Parent = RightPanel
         
         local corner = Instance.new("UICorner")
         corner.CornerRadius = UDim.new(0, 4)
@@ -246,38 +327,43 @@ local function createGUI()
         return btn
     end
     
-    local ClearBtn = createButton("CLEAR", UDim2.new(0, 0, 0, 0), Color3.fromRGB(80, 80, 90))
-    local PauseBtn = createButton("PAUSE", UDim2.new(0, 85, 0, 0), Color3.fromRGB(200, 150, 50))
-    local ExportBtn = createButton("EXPORT", UDim2.new(0, 170, 0, 0), Color3.fromRGB(50, 150, 200))
-    local CopyLastBtn = createButton("COPY LAST", UDim2.new(0, 255, 0, 0), Color3.fromRGB(100, 180, 100))
+    local CopyBtn = createBtn("COPY CODE", UDim2.new(0, 5, 0, 200), Color3.fromRGB(80, 120, 180))
+    local SelectAllBtn = createBtn("SELECT ALL", UDim2.new(0.52, 0, 0, 200), Color3.fromRGB(100, 100, 120))
+    local FireBtn = createBtn("FIRE (NO ARGS)", UDim2.new(0, 5, 0, 232), Color3.fromRGB(200, 100, 50))
+    local FireWithBtn = createBtn("FIRE WITH ARGS", UDim2.new(0.52, 0, 0, 232), Color3.fromRGB(180, 80, 80))
     
-    -- Scroll Frame for logs
-    local ScrollFrame = Instance.new("ScrollingFrame")
-    ScrollFrame.Name = "LogsScroll"
-    ScrollFrame.Size = UDim2.new(1, -20, 1, -85)
-    ScrollFrame.Position = UDim2.new(0, 10, 0, 75)
-    ScrollFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
-    ScrollFrame.BorderSizePixel = 0
-    ScrollFrame.ScrollBarThickness = 6
-    ScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(255, 100, 100)
-    ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-    ScrollFrame.Parent = MainFrame
+    -- Args input
+    local ArgsInput = Instance.new("TextBox")
+    ArgsInput.Size = UDim2.new(1, -10, 0, 50)
+    ArgsInput.Position = UDim2.new(0, 5, 0, 265)
+    ArgsInput.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    ArgsInput.Text = ""
+    ArgsInput.PlaceholderText = 'Args: "arg1", 123, true (comma separated)'
+    ArgsInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ArgsInput.PlaceholderColor3 = Color3.fromRGB(80, 80, 80)
+    ArgsInput.TextSize = 10
+    ArgsInput.Font = Enum.Font.Code
+    ArgsInput.TextXAlignment = Enum.TextXAlignment.Left
+    ArgsInput.TextYAlignment = Enum.TextYAlignment.Top
+    ArgsInput.ClearTextOnFocus = false
+    ArgsInput.MultiLine = true
+    ArgsInput.Parent = RightPanel
     
-    local ScrollCorner = Instance.new("UICorner")
-    ScrollCorner.CornerRadius = UDim.new(0, 6)
-    ScrollCorner.Parent = ScrollFrame
+    local ArgsCorner = Instance.new("UICorner")
+    ArgsCorner.CornerRadius = UDim.new(0, 4)
+    ArgsCorner.Parent = ArgsInput
     
-    local LogLayout = Instance.new("UIListLayout")
-    LogLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    LogLayout.Padding = UDim.new(0, 5)
-    LogLayout.Parent = ScrollFrame
-    
-    local LogPadding = Instance.new("UIPadding")
-    LogPadding.PaddingTop = UDim.new(0, 5)
-    LogPadding.PaddingBottom = UDim.new(0, 5)
-    LogPadding.PaddingLeft = UDim.new(0, 5)
-    LogPadding.PaddingRight = UDim.new(0, 5)
-    LogPadding.Parent = ScrollFrame
+    -- Bottom info
+    local BottomInfo = Instance.new("TextLabel")
+    BottomInfo.Size = UDim2.new(1, -20, 0, 40)
+    BottomInfo.Position = UDim2.new(0, 10, 1, -45)
+    BottomInfo.BackgroundTransparency = 1
+    BottomInfo.Text = "TIP: Search for 'click', 'button', 'convert', 'buy', 'upgrade' to find useful remotes!\nFire remotes to test what they do. Check console for results."
+    BottomInfo.TextColor3 = Color3.fromRGB(100, 100, 100)
+    BottomInfo.TextSize = 10
+    BottomInfo.Font = Enum.Font.Gotham
+    BottomInfo.TextWrapped = true
+    BottomInfo.Parent = MainFrame
     
     -- Make draggable
     local dragging, dragStart, startPos
@@ -306,383 +392,217 @@ local function createGUI()
         end
     end)
     
-    -- Close button
-    CloseBtn.MouseButton1Click:Connect(function()
-        ScreenGui:Destroy()
-        -- Unhook everything
-        for _, hook in pairs(Hooks) do
-            pcall(function() hook:Disconnect() end)
-        end
-    end)
-    
-    -- Clear button
-    ClearBtn.MouseButton1Click:Connect(function()
-        CapturedRemotes = {}
-        for _, child in pairs(ScrollFrame:GetChildren()) do
-            if child:IsA("Frame") then
+    -- Populate remote list
+    local function populateList(filter)
+        -- Clear existing
+        for _, child in pairs(RemoteScroll:GetChildren()) do
+            if child:IsA("TextButton") then
                 child:Destroy()
             end
         end
-        ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-    end)
-    
-    -- Pause button
-    PauseBtn.MouseButton1Click:Connect(function()
-        Settings.Enabled = not Settings.Enabled
-        if Settings.Enabled then
-            PauseBtn.Text = "PAUSE"
-            PauseBtn.BackgroundColor3 = Color3.fromRGB(200, 150, 50)
-            StatusDot.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
-            StatusLabel.Text = "RECORDING"
-            StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
-        else
-            PauseBtn.Text = "RESUME"
-            PauseBtn.BackgroundColor3 = Color3.fromRGB(100, 180, 100)
-            StatusDot.BackgroundColor3 = Color3.fromRGB(255, 150, 50)
-            StatusLabel.Text = "PAUSED"
-            StatusLabel.TextColor3 = Color3.fromRGB(255, 150, 50)
-        end
-    end)
-    
-    -- Export button
-    ExportBtn.MouseButton1Click:Connect(function()
-        local output = "-- FAMYY Remote Spy Export\n"
-        output = output .. "-- Captured " .. #CapturedRemotes .. " remote calls\n\n"
         
-        for i, capture in ipairs(CapturedRemotes) do
-            output = output .. "-- [" .. i .. "] " .. capture.Name .. " (" .. capture.Type .. ")\n"
-            output = output .. capture.Code .. "\n\n"
-        end
-        
-        -- Create export window
-        local ExportGui = Instance.new("ScreenGui")
-        ExportGui.Name = "FamyyExport"
-        ExportGui.Parent = ScreenGui.Parent
-        
-        local ExportFrame = Instance.new("Frame")
-        ExportFrame.Size = UDim2.new(0, 500, 0, 300)
-        ExportFrame.Position = UDim2.new(0.5, -250, 0.5, -150)
-        ExportFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-        ExportFrame.Parent = ExportGui
-        
-        local ExportCorner = Instance.new("UICorner")
-        ExportCorner.CornerRadius = UDim.new(0, 8)
-        ExportCorner.Parent = ExportFrame
-        
-        local ExportBox = Instance.new("TextBox")
-        ExportBox.Size = UDim2.new(1, -20, 1, -50)
-        ExportBox.Position = UDim2.new(0, 10, 0, 10)
-        ExportBox.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
-        ExportBox.Text = output
-        ExportBox.TextColor3 = Color3.fromRGB(200, 200, 200)
-        ExportBox.TextSize = 11
-        ExportBox.Font = Enum.Font.Code
-        ExportBox.TextXAlignment = Enum.TextXAlignment.Left
-        ExportBox.TextYAlignment = Enum.TextYAlignment.Top
-        ExportBox.TextWrapped = true
-        ExportBox.ClearTextOnFocus = false
-        ExportBox.MultiLine = true
-        ExportBox.Parent = ExportFrame
-        
-        local ExportBoxCorner = Instance.new("UICorner")
-        ExportBoxCorner.CornerRadius = UDim.new(0, 4)
-        ExportBoxCorner.Parent = ExportBox
-        
-        local SelectAllBtn = Instance.new("TextButton")
-        SelectAllBtn.Size = UDim2.new(0, 100, 0, 30)
-        SelectAllBtn.Position = UDim2.new(0.5, -110, 1, -40)
-        SelectAllBtn.BackgroundColor3 = Color3.fromRGB(100, 150, 200)
-        SelectAllBtn.Text = "SELECT ALL"
-        SelectAllBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        SelectAllBtn.TextSize = 12
-        SelectAllBtn.Font = Enum.Font.GothamBold
-        SelectAllBtn.Parent = ExportFrame
-        
-        local SelectCorner = Instance.new("UICorner")
-        SelectCorner.CornerRadius = UDim.new(0, 4)
-        SelectCorner.Parent = SelectAllBtn
-        
-        local CloseExportBtn = Instance.new("TextButton")
-        CloseExportBtn.Size = UDim2.new(0, 100, 0, 30)
-        CloseExportBtn.Position = UDim2.new(0.5, 10, 1, -40)
-        CloseExportBtn.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
-        CloseExportBtn.Text = "CLOSE"
-        CloseExportBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        CloseExportBtn.TextSize = 12
-        CloseExportBtn.Font = Enum.Font.GothamBold
-        CloseExportBtn.Parent = ExportFrame
-        
-        local CloseExportCorner = Instance.new("UICorner")
-        CloseExportCorner.CornerRadius = UDim.new(0, 4)
-        CloseExportCorner.Parent = CloseExportBtn
-        
-        SelectAllBtn.MouseButton1Click:Connect(function()
-            ExportBox:CaptureFocus()
-            ExportBox.SelectionStart = 1
-            ExportBox.CursorPosition = #ExportBox.Text + 1
-        end)
-        
-        CloseExportBtn.MouseButton1Click:Connect(function()
-            ExportGui:Destroy()
-        end)
-    end)
-    
-    -- Copy last button
-    CopyLastBtn.MouseButton1Click:Connect(function()
-        if #CapturedRemotes > 0 then
-            local last = CapturedRemotes[#CapturedRemotes]
+        local count = 0
+        for i, remote in ipairs(AllRemotes) do
+            -- Filter
+            local show = true
+            if filter and filter ~= "" then
+                if not remote.Name:lower():find(filter:lower()) and not remote.Path:lower():find(filter:lower()) then
+                    show = false
+                end
+            end
             
-            -- Try clipboard
-            pcall(function()
-                setclipboard(last.Code)
+            if show then
+            
+            count = count + 1
+            
+            local btn = Instance.new("TextButton")
+            btn.Name = "Remote_" .. i
+            btn.Size = UDim2.new(1, -10, 0, 35)
+            btn.BackgroundColor3 = remote.Type == "RemoteEvent" and Color3.fromRGB(40, 30, 30) or Color3.fromRGB(30, 30, 45)
+            btn.Text = ""
+            btn.LayoutOrder = i
+            btn.Parent = RemoteScroll
+            
+            local btnCorner = Instance.new("UICorner")
+            btnCorner.CornerRadius = UDim.new(0, 4)
+            btnCorner.Parent = btn
+            
+            -- Type indicator
+            local typeInd = Instance.new("Frame")
+            typeInd.Size = UDim2.new(0, 3, 1, -6)
+            typeInd.Position = UDim2.new(0, 3, 0, 3)
+            typeInd.BackgroundColor3 = remote.Type == "RemoteEvent" and Color3.fromRGB(255, 100, 100) or Color3.fromRGB(100, 100, 255)
+            typeInd.Parent = btn
+            
+            local typeCorner = Instance.new("UICorner")
+            typeCorner.CornerRadius = UDim.new(0, 2)
+            typeCorner.Parent = typeInd
+            
+            -- Name
+            local nameLabel = Instance.new("TextLabel")
+            nameLabel.Size = UDim2.new(1, -15, 0, 18)
+            nameLabel.Position = UDim2.new(0, 12, 0, 2)
+            nameLabel.BackgroundTransparency = 1
+            nameLabel.Text = remote.Name
+            nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            nameLabel.TextSize = 11
+            nameLabel.Font = Enum.Font.GothamBold
+            nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+            nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+            nameLabel.Parent = btn
+            
+            -- Type label
+            local typeLabel = Instance.new("TextLabel")
+            typeLabel.Size = UDim2.new(1, -15, 0, 14)
+            typeLabel.Position = UDim2.new(0, 12, 0, 18)
+            typeLabel.BackgroundTransparency = 1
+            typeLabel.Text = remote.Type
+            typeLabel.TextColor3 = Color3.fromRGB(100, 100, 100)
+            typeLabel.TextSize = 9
+            typeLabel.Font = Enum.Font.Gotham
+            typeLabel.TextXAlignment = Enum.TextXAlignment.Left
+            typeLabel.Parent = btn
+            
+            -- Click handler
+            btn.MouseButton1Click:Connect(function()
+                SelectedRemote = remote
+                
+                -- Update details
+                DetailsTitle.Text = remote.Name
+                DetailsInfo.Text = "Type: " .. remote.Type .. "\n\nPath: " .. remote.FullName
+                
+                -- Generate code
+                local code
+                if remote.Type == "RemoteEvent" then
+                    code = 'game:GetService("ReplicatedStorage")' .. remote.Path:gsub("ReplicatedStorage", "") .. ':FireServer()'
+                else
+                    code = 'game:GetService("ReplicatedStorage")' .. remote.Path:gsub("ReplicatedStorage", "") .. ':InvokeServer()'
+                end
+                CodeBox.Text = code
+                
+                -- Highlight selected
+                for _, child in pairs(RemoteScroll:GetChildren()) do
+                    if child:IsA("TextButton") then
+                        child.BackgroundColor3 = child.Name == "Remote_" .. i and Color3.fromRGB(60, 50, 50) or (remote.Type == "RemoteEvent" and Color3.fromRGB(40, 30, 30) or Color3.fromRGB(30, 30, 45))
+                    end
+                end
+                btn.BackgroundColor3 = Color3.fromRGB(80, 60, 60)
             end)
             
-            -- Show copied notification
-            CopyLastBtn.Text = "COPIED!"
-            CopyLastBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
-            task.delay(1, function()
-                CopyLastBtn.Text = "COPY LAST"
-                CopyLastBtn.BackgroundColor3 = Color3.fromRGB(100, 180, 100)
-            end)
+            end -- end if show
         end
-    end)
-    
-    return ScreenGui, ScrollFrame, LogLayout
-end
-
--- ============================================================================
--- ADD LOG ENTRY
--- ============================================================================
-
-local GUI, ScrollFrame, LogLayout
-
-local function addLogEntry(remoteName, remoteType, remotePath, args, code)
-    if not GUI or not GUI.Parent then return end
-    
-    -- Store capture
-    table.insert(CapturedRemotes, {
-        Name = remoteName,
-        Type = remoteType,
-        Path = remotePath,
-        Args = args,
-        Code = code,
-        Time = os.time()
-    })
-    
-    -- Limit logs
-    if #CapturedRemotes > Settings.MaxLogs then
-        table.remove(CapturedRemotes, 1)
-        local firstChild = ScrollFrame:FindFirstChildOfClass("Frame")
-        if firstChild then firstChild:Destroy() end
+        
+        -- Update canvas
+        RemoteScroll.CanvasSize = UDim2.new(0, 0, 0, RemoteLayout.AbsoluteContentSize.Y + 10)
+        TitleLabel.Text = "FAMYY REMOTE BROWSER - " .. count .. "/" .. #AllRemotes .. " REMOTES"
     end
     
-    -- Create log entry
-    local Entry = Instance.new("Frame")
-    Entry.Name = "Entry_" .. #CapturedRemotes
-    Entry.Size = UDim2.new(1, -10, 0, 60)
-    Entry.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-    Entry.LayoutOrder = #CapturedRemotes
-    Entry.Parent = ScrollFrame
+    -- Initial populate
+    populateList("")
     
-    local EntryCorner = Instance.new("UICorner")
-    EntryCorner.CornerRadius = UDim.new(0, 4)
-    EntryCorner.Parent = Entry
-    
-    -- Remote type indicator
-    local TypeIndicator = Instance.new("Frame")
-    TypeIndicator.Size = UDim2.new(0, 4, 1, -10)
-    TypeIndicator.Position = UDim2.new(0, 5, 0, 5)
-    TypeIndicator.BackgroundColor3 = remoteType == "RemoteEvent" and Color3.fromRGB(255, 100, 100) or Color3.fromRGB(100, 100, 255)
-    TypeIndicator.Parent = Entry
-    
-    local TypeCorner = Instance.new("UICorner")
-    TypeCorner.CornerRadius = UDim.new(0, 2)
-    TypeCorner.Parent = TypeIndicator
-    
-    -- Remote name
-    local NameLabel = Instance.new("TextLabel")
-    NameLabel.Size = UDim2.new(1, -80, 0, 18)
-    NameLabel.Position = UDim2.new(0, 15, 0, 5)
-    NameLabel.BackgroundTransparency = 1
-    NameLabel.Text = remoteName .. " [" .. remoteType .. "]"
-    NameLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
-    NameLabel.TextSize = 12
-    NameLabel.Font = Enum.Font.GothamBold
-    NameLabel.TextXAlignment = Enum.TextXAlignment.Left
-    NameLabel.TextTruncate = Enum.TextTruncate.AtEnd
-    NameLabel.Parent = Entry
-    
-    -- Args preview
-    local ArgsLabel = Instance.new("TextLabel")
-    ArgsLabel.Size = UDim2.new(1, -80, 0, 32)
-    ArgsLabel.Position = UDim2.new(0, 15, 0, 23)
-    ArgsLabel.BackgroundTransparency = 1
-    ArgsLabel.Text = formatArgs(args):sub(1, 200)
-    ArgsLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
-    ArgsLabel.TextSize = 10
-    ArgsLabel.Font = Enum.Font.Code
-    ArgsLabel.TextXAlignment = Enum.TextXAlignment.Left
-    ArgsLabel.TextYAlignment = Enum.TextYAlignment.Top
-    ArgsLabel.TextWrapped = true
-    ArgsLabel.TextTruncate = Enum.TextTruncate.AtEnd
-    ArgsLabel.Parent = Entry
+    -- Search handler
+    SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        populateList(SearchBox.Text)
+    end)
     
     -- Copy button
-    local CopyBtn = Instance.new("TextButton")
-    CopyBtn.Size = UDim2.new(0, 50, 0, 50)
-    CopyBtn.Position = UDim2.new(1, -55, 0, 5)
-    CopyBtn.BackgroundColor3 = Color3.fromRGB(80, 120, 180)
-    CopyBtn.Text = "COPY"
-    CopyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    CopyBtn.TextSize = 10
-    CopyBtn.Font = Enum.Font.GothamBold
-    CopyBtn.Parent = Entry
-    
-    local CopyBtnCorner = Instance.new("UICorner")
-    CopyBtnCorner.CornerRadius = UDim.new(0, 4)
-    CopyBtnCorner.Parent = CopyBtn
-    
     CopyBtn.MouseButton1Click:Connect(function()
-        pcall(function()
-            setclipboard(code)
-        end)
-        CopyBtn.Text = "OK!"
-        CopyBtn.BackgroundColor3 = Color3.fromRGB(80, 180, 80)
-        task.delay(1, function()
-            if CopyBtn and CopyBtn.Parent then
-                CopyBtn.Text = "COPY"
-                CopyBtn.BackgroundColor3 = Color3.fromRGB(80, 120, 180)
-            end
-        end)
+        if SelectedRemote then
+            pcall(function()
+                setclipboard(CodeBox.Text)
+            end)
+            CopyBtn.Text = "COPIED!"
+            task.delay(1, function()
+                CopyBtn.Text = "COPY CODE"
+            end)
+        end
     end)
     
-    -- Update canvas size
-    ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, LogLayout.AbsoluteContentSize.Y + 10)
+    -- Select all button
+    SelectAllBtn.MouseButton1Click:Connect(function()
+        CodeBox:CaptureFocus()
+        CodeBox.SelectionStart = 1
+        CodeBox.CursorPosition = #CodeBox.Text + 1
+    end)
     
-    -- Auto scroll to bottom
-    ScrollFrame.CanvasPosition = Vector2.new(0, ScrollFrame.CanvasSize.Y.Offset)
-    
-    print("[RemoteSpy] Captured:", remoteName, "(" .. remoteType .. ")")
-end
-
--- ============================================================================
--- HOOK REMOTES
--- ============================================================================
-
-local function hookRemote(remote)
-    if not remote then return end
-    
-    local remoteName = remote.Name
-    local remotePath = remote:GetFullName()
-    local remoteType = remote.ClassName
-    
-    -- Skip ignored
-    for _, ignored in ipairs(Settings.IgnoreList) do
-        if remoteName:lower():find(ignored:lower()) then
-            return
-        end
-    end
-    
-    -- Hook based on type
-    if remoteType == "RemoteEvent" then
-        local oldFire = remote.FireServer
-        
-        local hook
-        hook = hookfunction and hookfunction(oldFire, function(self, ...)
-            if Settings.Enabled and self == remote then
-                local args = {...}
-                local code = generateCode(remotePath, remoteType, args)
-                addLogEntry(remoteName, remoteType, remotePath, args, code)
-            end
-            return oldFire(self, ...)
-        end)
-        
-        -- Fallback: use namecall hook if hookfunction doesn't exist
-        if not hook then
-            -- Will use namecall method instead
-        end
-        
-    elseif remoteType == "RemoteFunction" then
-        local oldInvoke = remote.InvokeServer
-        
-        local hook
-        hook = hookfunction and hookfunction(oldInvoke, function(self, ...)
-            if Settings.Enabled and self == remote then
-                local args = {...}
-                local code = generateCode(remotePath, remoteType, args)
-                addLogEntry(remoteName, remoteType, remotePath, args, code)
-            end
-            return oldInvoke(self, ...)
-        end)
-    end
-end
-
--- ============================================================================
--- NAMECALL HOOK (MAIN METHOD)
--- ============================================================================
-
-local function setupNamecallHook()
-    if not getnamecallmethod then
-        warn("[RemoteSpy] getnamecallmethod not available, using alternative method")
-        return false
-    end
-    
-    local oldNamecall
-    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        local method = getnamecallmethod()
-        local args = {...}
-        
-        if Settings.Enabled then
-            if method == "FireServer" and self:IsA("RemoteEvent") then
-                local remoteName = self.Name
-                local remotePath = self:GetFullName()
-                local code = generateCode(remotePath, "RemoteEvent", args)
-                
-                task.defer(function()
-                    addLogEntry(remoteName, "RemoteEvent", remotePath, args, code)
+    -- Fire button (no args)
+    FireBtn.MouseButton1Click:Connect(function()
+        if SelectedRemote then
+            local remote = SelectedRemote.Instance
+            local result
+            
+            if SelectedRemote.Type == "RemoteEvent" then
+                pcall(function()
+                    remote:FireServer()
                 end)
-                
-            elseif method == "InvokeServer" and self:IsA("RemoteFunction") then
-                local remoteName = self.Name
-                local remotePath = self:GetFullName()
-                local code = generateCode(remotePath, "RemoteFunction", args)
-                
-                task.defer(function()
-                    addLogEntry(remoteName, "RemoteFunction", remotePath, args, code)
+                print("[RemoteBrowser] Fired:", SelectedRemote.Name)
+                FireBtn.Text = "FIRED!"
+            else
+                local success, res = pcall(function()
+                    return remote:InvokeServer()
                 end)
+                if success then
+                    print("[RemoteBrowser] Result:", formatValue(res))
+                else
+                    warn("[RemoteBrowser] Error:", res)
+                end
+                FireBtn.Text = "INVOKED!"
             end
+            
+            task.delay(1, function()
+                FireBtn.Text = "FIRE (NO ARGS)"
+            end)
         end
-        
-        return oldNamecall(self, ...)
     end)
     
-    return true
-end
-
--- ============================================================================
--- ALTERNATIVE: CONNECTION-BASED SPY
--- ============================================================================
-
-local function setupConnectionSpy()
-    -- This watches for new remotes and tries to hook them
-    local function scanRemotes(parent)
-        for _, child in pairs(parent:GetDescendants()) do
-            if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
-                hookRemote(child)
+    -- Fire with args button
+    FireWithBtn.MouseButton1Click:Connect(function()
+        if SelectedRemote then
+            local argsText = ArgsInput.Text
+            local remote = SelectedRemote.Instance
+            
+            -- Parse args (simple parsing)
+            local args = {}
+            if argsText ~= "" then
+                -- Try to load as Lua
+                local func, err = loadstring("return {" .. argsText .. "}")
+                if func then
+                    local success, result = pcall(func)
+                    if success then
+                        args = result
+                    else
+                        warn("[RemoteBrowser] Args parse error:", result)
+                    end
+                else
+                    warn("[RemoteBrowser] Args syntax error:", err)
+                end
             end
-        end
-    end
-    
-    -- Scan existing
-    scanRemotes(ReplicatedStorage)
-    pcall(function() scanRemotes(game:GetService("Workspace")) end)
-    
-    -- Watch for new ones
-    ReplicatedStorage.DescendantAdded:Connect(function(desc)
-        if desc:IsA("RemoteEvent") or desc:IsA("RemoteFunction") then
-            hookRemote(desc)
+            
+            if SelectedRemote.Type == "RemoteEvent" then
+                pcall(function()
+                    remote:FireServer(unpack(args))
+                end)
+                print("[RemoteBrowser] Fired with args:", SelectedRemote.Name, unpack(args))
+                FireWithBtn.Text = "FIRED!"
+            else
+                local success, res = pcall(function()
+                    return remote:InvokeServer(unpack(args))
+                end)
+                if success then
+                    print("[RemoteBrowser] Result:", formatValue(res))
+                else
+                    warn("[RemoteBrowser] Error:", res)
+                end
+                FireWithBtn.Text = "INVOKED!"
+            end
+            
+            task.delay(1, function()
+                FireWithBtn.Text = "FIRE WITH ARGS"
+            end)
         end
     end)
+    
+    return ScreenGui
 end
 
 -- ============================================================================
@@ -691,28 +611,28 @@ end
 
 local function main()
     print("")
-    print("╔══════════════════════════════════════════╗")
-    print("║       FAMYY REMOTE SPY v1.0              ║")
-    print("╠══════════════════════════════════════════╣")
-    print("║  Do actions in game to capture remotes   ║")
-    print("║  Click buttons, buy items, etc.          ║")
-    print("╚══════════════════════════════════════════╝")
+    print("============================================")
+    print("     FAMYY REMOTE BROWSER v2.0             ")
+    print("============================================")
+    print("  Scanning for remotes...                  ")
+    print("")
+    
+    -- Scan remotes
+    scanRemotes()
+    
+    print("  Found " .. #AllRemotes .. " remotes!")
+    print("")
+    print("  TIP: Search for keywords like:")
+    print("    - click, button, tap")
+    print("    - convert, buy, sell")
+    print("    - upgrade, unlock")
+    print("    - time, eon, currency")
     print("")
     
     -- Create GUI
-    GUI, ScrollFrame, LogLayout = createGUI()
+    createGUI()
     
-    -- Try namecall hook first (best method)
-    local success = pcall(setupNamecallHook)
-    
-    if not success then
-        print("[RemoteSpy] Namecall hook failed, using connection spy...")
-        setupConnectionSpy()
-    else
-        print("[RemoteSpy] Namecall hook active - all remotes will be captured!")
-    end
-    
-    print("[RemoteSpy] Ready! Perform actions to capture remotes.")
+    print("[RemoteBrowser] Ready! Click remotes to explore.")
 end
 
 main()
