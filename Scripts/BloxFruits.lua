@@ -13,11 +13,15 @@
 ]]
 
 -- ============================================================================
--- ANTI-AFK (Disable idle connections)
+-- ANTI-AFK (Disable idle connections - with fallback)
 -- ============================================================================
-for i,v in pairs(getconnections(game.Players.LocalPlayer.Idled)) do
-    v:Disable()
-end
+pcall(function()
+    if getconnections then
+        for i,v in pairs(getconnections(game.Players.LocalPlayer.Idled)) do
+            v:Disable()
+        end
+    end
+end)
 
 -- ============================================================================
 -- SERVICES
