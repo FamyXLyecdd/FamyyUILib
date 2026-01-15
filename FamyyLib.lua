@@ -377,19 +377,29 @@ function Library:CreateWindow(config)
     MinIcon.Visible = false
     MinIcon.Parent = Container
     
-    -- Tab Bar
-    local TabBar = Instance.new("Frame")
+    -- Tab Bar (Scrollable to handle many tabs)
+    local TabBar = Instance.new("ScrollingFrame")
     TabBar.Name = "TabBar"
     TabBar.Size = UDim2.new(1, -30, 0, Theme.Sizes.TabBarHeight)
     TabBar.Position = UDim2.new(0, 15, 0, Theme.Sizes.HeaderHeight)
     TabBar.BackgroundColor3 = Theme.Colors.Surface
+    TabBar.ScrollBarThickness = 0
+    TabBar.ScrollingDirection = Enum.ScrollingDirection.X
+    TabBar.CanvasSize = UDim2.new(0, 0, 0, 0)
+    TabBar.AutomaticCanvasSize = Enum.AutomaticSize.X
+    TabBar.ClipsDescendants = true
     TabBar.Parent = Container
     Instance.new("UICorner", TabBar).CornerRadius = Theme.Corners.Card
     
     local TabLayout = Instance.new("UIListLayout", TabBar)
     TabLayout.FillDirection = Enum.FillDirection.Horizontal
-    TabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    TabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
     TabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+    TabLayout.Padding = UDim.new(0, 2)
+    
+    local TabPadding = Instance.new("UIPadding", TabBar)
+    TabPadding.PaddingLeft = UDim.new(0, 4)
+    TabPadding.PaddingRight = UDim.new(0, 4)
     
     -- Content Frame
     local ContentFrame = Instance.new("Frame")
@@ -415,14 +425,28 @@ function Library:CreateWindow(config)
             ContentFrame.Visible = false
             MinIcon.Visible = true
             
+            -- Create expand button that doesn't block dragging
             expandBtn = Instance.new("TextButton", Container)
             expandBtn.Size = UDim2.new(1, 0, 1, 0)
             expandBtn.BackgroundTransparency = 1
             expandBtn.Text = ""
-            connections:Track(expandBtn.MouseButton1Click:Connect(function()
+            expandBtn.Active = false -- Allow drag events to pass through to Main
+            expandBtn.AutoButtonColor = false
+            
+            -- Use MouseButton1Click but also make MinIcon clickable
+            MinIcon.Active = true
+            local minIconBtn = Instance.new("TextButton", MinIcon)
+            minIconBtn.Size = UDim2.new(1, 0, 1, 0)
+            minIconBtn.BackgroundTransparency = 1
+            minIconBtn.Text = ""
+            minIconBtn.Active = false -- Don't block dragging
+            
+            local function expand()
                 isMinimized = false
                 if expandBtn then expandBtn:Destroy() expandBtn = nil end
+                if minIconBtn then minIconBtn:Destroy() end
                 MinIcon.Visible = false
+                MinIcon.Active = false
                 Tween.Play(Main, {Size = size}, 0.3)
                 Tween.Play(MainCorner, {CornerRadius = Theme.Corners.Window}, 0.3)
                 Tween.Play(MainStroke, {Color = Theme.Colors.Surface}, 0.3)
@@ -430,7 +454,20 @@ function Library:CreateWindow(config)
                 Header.Visible = true
                 TabBar.Visible = true
                 ContentFrame.Visible = true
+            end
+            
+            -- Double-click to expand (single click allows drag)
+            local lastClick = 0
+            connections:Track(minIconBtn.MouseButton1Click:Connect(function()
+                local now = tick()
+                if now - lastClick < 0.3 then
+                    expand()
+                end
+                lastClick = now
             end))
+            
+            -- Also expand on regular click of the expand button area
+            connections:Track(expandBtn.MouseButton1Click:Connect(expand))
         end
     end))
     
@@ -461,20 +498,25 @@ function Library:CreateWindow(config)
         @return Tab
     ]]
     function Window:CreateTab(name)
+        -- Fixed-width tabs with minimum size (prevents overflow)
+        local minTabWidth = 60
+        local maxTabWidth = 100
+        local tabWidth = math.clamp(TabBar.AbsoluteSize.X / math.max(#self.Tabs + 1, 1) - 4, minTabWidth, maxTabWidth)
+        
         local tabBtn = Instance.new("TextButton")
-        tabBtn.Size = UDim2.new(1 / math.max(#self.Tabs + 1, 1), 0, 1, 0)
-        tabBtn.BackgroundTransparency = 1
+        tabBtn.Size = UDim2.new(0, tabWidth, 1, -4)
+        tabBtn.BackgroundTransparency = 0
+        tabBtn.BackgroundColor3 = Theme.Colors.Surface
         tabBtn.Text = name
         tabBtn.TextColor3 = Theme.Colors.TextDim
         tabBtn.Font = Theme.Fonts.Header
         tabBtn.TextSize = Theme.TextSizes.Caption
+        tabBtn.TextTruncate = Enum.TextTruncate.AtEnd
         tabBtn.AutoButtonColor = false
         tabBtn.Parent = TabBar
+        Instance.new("UICorner", tabBtn).CornerRadius = Theme.Corners.Button
         
-        -- Update existing tab button sizes
-        for _, t in ipairs(self.Tabs) do
-            t.Button.Size = UDim2.new(1 / (#self.Tabs + 1), 0, 1, 0)
-        end
+        -- Don't resize existing tabs - fixed width allows scrolling
         
         local page = Instance.new("ScrollingFrame")
         page.Name = "Tab_" .. name
@@ -801,6 +843,15 @@ function Library:CreateWindow(config)
                 
                 local dragging = false
                 
+                -- Invisible button overlay to capture input and prevent drag propagation
+                local sliderHitbox = Instance.new("TextButton")
+                sliderHitbox.Size = UDim2.new(1, 0, 0, 20)
+                sliderHitbox.Position = UDim2.new(0, 0, 0, 22)
+                sliderHitbox.BackgroundTransparency = 1
+                sliderHitbox.Text = ""
+                sliderHitbox.Active = true -- Prevents input from going to parent (Main frame)
+                sliderHitbox.Parent = frame
+                
                 local function updateSlider(input)
                     local pos = math.clamp((input.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
                     local newVal = min + (max - min) * pos
@@ -817,11 +868,11 @@ function Library:CreateWindow(config)
                     end
                 end
                 
-                connections:Track(track.InputBegan:Connect(function(input)
-                    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                        dragging = true
-                        updateSlider(input)
-                    end
+                -- Use button events instead of InputBegan to prevent propagation
+                connections:Track(sliderHitbox.MouseButton1Down:Connect(function()
+                    dragging = true
+                    local input = {Position = UserInputService:GetMouseLocation()}
+                    updateSlider(input)
                 end))
                 connections:Track(UserInputService.InputChanged:Connect(function(input)
                     if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
