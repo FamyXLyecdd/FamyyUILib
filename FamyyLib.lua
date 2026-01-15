@@ -302,15 +302,21 @@ function Library:CreateWindow(config)
     -- Custom dragging system (works when minimized too)
     local dragInput, dragStart, startPos
     local dragging = false
+    local didDrag = false -- Track if user actually moved (to distinguish from click)
     
     local function updateDrag(input)
         local delta = input.Position - dragStart
+        local distance = math.abs(delta.X) + math.abs(delta.Y)
+        if distance > 5 then
+            didDrag = true -- User moved more than 5 pixels, this is a drag not a click
+        end
         Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
     
     local function startDrag(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
+            didDrag = false -- Reset drag detection
             dragStart = input.Position
             startPos = Main.Position
             
@@ -491,6 +497,7 @@ function Library:CreateWindow(config)
     -- Minimize/Expand logic
     local isMinimized = false
     local lastClickTime = 0
+    local lastClickWasDrag = false
     
     local function expand()
         if not isMinimized then return end
@@ -505,19 +512,27 @@ function Library:CreateWindow(config)
         ContentFrame.Visible = true
     end
     
-    -- Double-click on minimized window to expand
+    -- Double-click on minimized window to expand (only if not dragging)
     local function checkDoubleClick(input)
         if isMinimized and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-            local now = tick()
-            if now - lastClickTime < 0.3 then
-                expand()
+            -- Only count as click if user didn't drag
+            if not didDrag then
+                local now = tick()
+                -- Only expand if both this click and last click were NOT drags
+                if now - lastClickTime < 0.4 and not lastClickWasDrag then
+                    expand()
+                    lastClickTime = 0 -- Reset to prevent triple-click issues
+                else
+                    lastClickTime = now
+                end
             end
-            lastClickTime = now
+            lastClickWasDrag = didDrag
         end
     end
     
-    Main.InputBegan:Connect(checkDoubleClick)
-    MinIcon.InputBegan:Connect(checkDoubleClick)
+    -- Use InputEnded to check after drag is complete
+    Main.InputEnded:Connect(checkDoubleClick)
+    MinIcon.InputEnded:Connect(checkDoubleClick)
     
     connections:Track(MinBtn.MouseButton1Click:Connect(function()
         isMinimized = not isMinimized
