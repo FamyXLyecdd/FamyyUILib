@@ -273,7 +273,10 @@ local function createGUI()
     LogLayout.Parent = ScrollFrame
     
     local LogPadding = Instance.new("UIPadding")
-    LogPadding.PaddingAll = UDim.new(0, 5)
+    LogPadding.PaddingTop = UDim.new(0, 5)
+    LogPadding.PaddingBottom = UDim.new(0, 5)
+    LogPadding.PaddingLeft = UDim.new(0, 5)
+    LogPadding.PaddingRight = UDim.new(0, 5)
     LogPadding.Parent = ScrollFrame
     
     -- Make draggable
