@@ -299,24 +299,19 @@ function Library:CreateWindow(config)
     Container.Parent = Main
     Instance.new("UICorner", Container).CornerRadius = Theme.Corners.Window
     
+    
     -- Custom dragging system (works when minimized too)
     local dragInput, dragStart, startPos
     local dragging = false
-    local didDrag = false -- Track if user actually moved (to distinguish from click)
     
     local function updateDrag(input)
         local delta = input.Position - dragStart
-        local distance = math.abs(delta.X) + math.abs(delta.Y)
-        if distance > 5 then
-            didDrag = true -- User moved more than 5 pixels, this is a drag not a click
-        end
         Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
     
     local function startDrag(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
-            didDrag = false -- Reset drag detection
             dragStart = input.Position
             startPos = Main.Position
             
@@ -497,7 +492,7 @@ function Library:CreateWindow(config)
     -- Minimize/Expand logic
     local isMinimized = false
     local lastClickTime = 0
-    local lastClickWasDrag = false
+    local lastClickPos = nil
     
     local function expand()
         if not isMinimized then return end
@@ -515,18 +510,28 @@ function Library:CreateWindow(config)
     -- Double-click on minimized window to expand (only if not dragging)
     local function checkDoubleClick(input)
         if isMinimized and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-            -- Only count as click if user didn't drag
-            if not didDrag then
+            -- Check if the window actually moved (meaning user dragged)
+            local currentPos = Main.Position
+            local wasDragged = false
+            
+            if startPos then
+                local deltaX = math.abs(currentPos.X.Offset - startPos.X.Offset)
+                local deltaY = math.abs(currentPos.Y.Offset - startPos.Y.Offset)
+                wasDragged = (deltaX > 5 or deltaY > 5)
+            end
+            
+            if not wasDragged then
                 local now = tick()
-                -- Only expand if both this click and last click were NOT drags
-                if now - lastClickTime < 0.4 and not lastClickWasDrag then
+                if now - lastClickTime < 0.4 then
                     expand()
-                    lastClickTime = 0 -- Reset to prevent triple-click issues
+                    lastClickTime = 0
                 else
                     lastClickTime = now
                 end
+            else
+                -- Reset double-click if user dragged
+                lastClickTime = 0
             end
-            lastClickWasDrag = didDrag
         end
     end
     
