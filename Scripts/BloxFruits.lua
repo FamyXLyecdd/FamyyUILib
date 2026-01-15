@@ -6,21 +6,21 @@
     ██████╔╝███████╗╚██████╔╝██╔╝ ██╗    ██║     ██║  ██║╚██████╔╝██║   ██║   ███████║
     ╚═════╝ ╚══════╝ ╚═════╝ ╚═╝  ╚═╝    ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═╝   ╚═╝   ╚══════╝
     
-    FAMYY PRIVATE - Blox Fruits Sea 1 Script v3.0
-    Premium Quality - Researched from Wazure, HoHo Hub, RedzHub, Mango Hub
+    FAMYY PRIVATE - Blox Fruits Sea 1 Complete Script v4.0
     
-    FEATURES:
     ================================================================================
-    [COMBAT] Remote-based attacking (no mouse interference)
-    [QUEST]  Proper quest acceptance via game remotes
-    [MOBS]   Bring + Freeze mobs (anchored in place)
-    [FARM]   Position ABOVE mob (configurable height)
-    [MOVE]   All movement via smooth tweening (anti-detection)
-    [ESP]    Optimized with throttling (no lag)
-    [ENERGY] Proper infinite energy via value hooking
-    [HITBOX] NPC/Mob hitbox expansion
-    [CHEST]  Collect 3 then reset (anti-kick)
-    [MISC]   Kill Aura, Auto Haki, Mastery Farm, No Clip, Anti-AFK
+    COMPLETE SEA 1 FEATURES - NO FRAGMENTS/MICROCHIPS (Sea 2+ content excluded)
+    ================================================================================
+    
+    [MAIN FARM] Auto Farm, Quest System, Mastery, Fighting Styles
+    [SEA 1 ITEMS] Saber, Pole, Trident, Accessories, Haki
+    [STATS] Auto allocate stats
+    [COMBAT] Kill Aura, Aimbot, Infinite Energy
+    [TELEPORT] All Sea 1 Islands
+    [ESP] Players, Mobs, Fruits, Chests, Bosses
+    [PLAYER] Speed, Jump, Fly, NoClip
+    [MISC] Chest Farm, Fruit Sniper, Server Hop
+    
     ================================================================================
 ]]
 
@@ -57,174 +57,140 @@ local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/FamyX
 local Window = Library.Window
 
 -- ============================================================================
--- CORE GAME REFERENCES (Blox Fruits Specific)
+-- CORE GAME REFERENCES
 -- ============================================================================
 
--- Remote Function (main communication)
-local RemoteFunction = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local CommF_ = Remotes:WaitForChild("CommF_")
+local CommE = Remotes:FindFirstChild("CommE")
 
--- Helper to call game remotes safely
-local function invokeRemote(...)
-    local args = {...}
+-- Safe remote invoke
+local function invokeRemote(arg1, arg2, arg3, arg4, arg5)
     local success, result = pcall(function()
-        return RemoteFunction:InvokeServer(unpack(args))
+        return CommF_:InvokeServer(arg1, arg2, arg3, arg4, arg5)
     end)
-    if success then
-        return result
-    end
-    return nil
+    return success and result or nil
 end
 
--- Get player data values
+-- Safe remote fire
+local function fireRemote(remote, arg1, arg2, arg3)
+    pcall(function()
+        remote:FireServer(arg1, arg2, arg3)
+    end)
+end
+
+-- Get player data value
 local function getDataValue(name)
     local data = LocalPlayer:FindFirstChild("Data")
     if data then
         local value = data:FindFirstChild(name)
-        if value then
-            return value.Value
-        end
+        if value then return value.Value end
     end
     return nil
 end
 
 local function getLevel() return getDataValue("Level") or 1 end
 local function getBeli() return getDataValue("Beli") or 0 end
-local function getFragments() return getDataValue("Fragments") or 0 end
 local function getExp() return getDataValue("Exp") or 0 end
+local function getPoints() return getDataValue("Points") or 0 end
+local function getRace() return getDataValue("Race") or "Human" end
+local function getDevilFruit() return getDataValue("DevilFruit") or "" end
 
 -- ============================================================================
--- COMPLETE SEA 1 DATABASE (Researched & Verified)
+-- COMPLETE SEA 1 DATABASE
 -- ============================================================================
 
--- Quest Database: Exact quest names and mob names from game
+-- Quest and Mob Data (Level Min, Level Max, Quest Name, Mob Name, Quest NPC Position, Mob Spawn Area)
 local Sea1Quests = {
-    -- Level Range, Quest Title (for remote), Mob Name, Quest NPC CFrame, Mob Spawn CFrame
-    {Min = 0, Max = 10, Quest = "Bandit", Mob = "Bandit", 
-     QuestNPC = CFrame.new(1059.15234, 16.5500031, 1546.81445),
-     MobArea = CFrame.new(1095.86, 17.05, 1602.34)},
-    
-    {Min = 10, Max = 15, Quest = "Monkey", Mob = "Monkey",
-     QuestNPC = CFrame.new(-1600.33, 36.35, 149.74),
-     MobArea = CFrame.new(-1448.47, 50.85, 53.26)},
-    
-    {Min = 15, Max = 30, Quest = "Gorilla", Mob = "Gorilla",
-     QuestNPC = CFrame.new(-1138.87, 14.35, -520.33),
-     MobArea = CFrame.new(-1090.55, 14.05, -577.49)},
-    
-    {Min = 30, Max = 60, Quest = "Pirate", Mob = "Pirate",
-     QuestNPC = CFrame.new(-1140.54, 4.35, 3830.16),
-     MobArea = CFrame.new(-1104.76, 4.05, 3872.54)},
-    
-    {Min = 60, Max = 90, Quest = "BuggyPirate", Mob = "Brute",
-     QuestNPC = CFrame.new(-1140.54, 4.35, 3830.16),
-     MobArea = CFrame.new(-1163.53, 4.05, 3874.18)},
-    
-    {Min = 90, Max = 120, Quest = "DesertBandit", Mob = "Desert Bandit",
-     QuestNPC = CFrame.new(894.42, 6.52, 4391.11),
-     MobArea = CFrame.new(1078.77, 6.42, 4128.16)},
-    
-    {Min = 120, Max = 150, Quest = "DesertOfficer", Mob = "Desert Officer",
-     QuestNPC = CFrame.new(894.42, 6.52, 4391.11),
-     MobArea = CFrame.new(1542.02, 11.92, 4436.38)},
-    
-    {Min = 150, Max = 180, Quest = "SnowBandit", Mob = "Snow Bandit",
-     QuestNPC = CFrame.new(1386.09, 87.35, -1296.04),
-     MobArea = CFrame.new(1363.96, 87.05, -1273.92)},
-    
-    {Min = 180, Max = 210, Quest = "SnowOfficer", Mob = "Snowman",
-     QuestNPC = CFrame.new(1386.09, 87.35, -1296.04),
-     MobArea = CFrame.new(1237.93, 138.55, -1486.86)},
-    
-    {Min = 210, Max = 250, Quest = "MarineCadet", Mob = "Marine Rear Admiral",
-     QuestNPC = CFrame.new(-4914.26, 50.35, 4279.22),
-     MobArea = CFrame.new(-4846.62, 56.35, 4334.04)},
-    
-    {Min = 250, Max = 275, Quest = "MarineRecrut", Mob = "Marine Captain",
-     QuestNPC = CFrame.new(-4914.26, 50.35, 4279.22),
-     MobArea = CFrame.new(-4914.75, 77.85, 4387.65)},
-    
-    {Min = 275, Max = 300, Quest = "SkyBandit", Mob = "Sky Bandit",
-     QuestNPC = CFrame.new(-4840.76, 716.52, -2622.84),
-     MobArea = CFrame.new(-4943.75, 717.35, -2804.06)},
-    
-    {Min = 300, Max = 330, Quest = "DarkMaster", Mob = "Dark Master",
-     QuestNPC = CFrame.new(-4840.76, 716.52, -2622.84),
-     MobArea = CFrame.new(-5125.67, 304.35, -2862.72)},
-    
-    {Min = 330, Max = 375, Quest = "Prisoner", Mob = "Prisoner",
-     QuestNPC = CFrame.new(4878.48, 5.52, 744.92),
-     MobArea = CFrame.new(4948.54, 5.64, 734.54)},
-    
-    {Min = 375, Max = 400, Quest = "DangerousPrisoner", Mob = "Dangerous Prisoner",
-     QuestNPC = CFrame.new(5227.93, 0.52, 479.41),
-     MobArea = CFrame.new(5189.67, 1.05, 557.75)},
-    
-    {Min = 400, Max = 450, Quest = "TorturedPrisoner", Mob = "Scared Prisoner",
-     QuestNPC = CFrame.new(5227.93, 0.52, 479.41),
-     MobArea = CFrame.new(5364.62, 1.34, 475.76)},
-    
-    {Min = 450, Max = 475, Quest = "Gladiator", Mob = "Toga Warrior",
-     QuestNPC = CFrame.new(-1580.69, 7.35, -2985.88),
-     MobArea = CFrame.new(-1429.77, 7.55, -2823.15)},
-    
-    {Min = 475, Max = 525, Quest = "MagmaNinja", Mob = "Military Soldier",
-     QuestNPC = CFrame.new(-5314.02, 12.35, 8515.71),
-     MobArea = CFrame.new(-5471.04, 12.35, 8519.84)},
-    
-    {Min = 525, Max = 550, Quest = "MagmaSoldier", Mob = "Military Spy",
-     QuestNPC = CFrame.new(-5314.02, 12.35, 8515.71),
-     MobArea = CFrame.new(-5656.52, 46.05, 8640.29)},
-    
-    {Min = 550, Max = 625, Quest = "FishmanWarrior", Mob = "Fishman Warrior",
-     QuestNPC = CFrame.new(61076.34, 11.50, 1580.42),
-     MobArea = CFrame.new(61235.23, 11.50, 1584.75)},
-    
-    {Min = 625, Max = 675, Quest = "FishmanCommando", Mob = "Fishman Commando",
-     QuestNPC = CFrame.new(61509.16, 11.50, 1241.27),
-     MobArea = CFrame.new(61633.76, 11.50, 1298.45)},
-    
-    {Min = 675, Max = 700, Quest = "GodGuard", Mob = "God's Guard",
-     QuestNPC = CFrame.new(-7862.28, 5545.55, -379.71),
-     MobArea = CFrame.new(-7920.47, 5546.35, -506.85)},
+    {Min = 0, Max = 10, Quest = "Bandit", Mob = "Bandit", QuestNPC = CFrame.new(1059, 17, 1547), MobArea = CFrame.new(1096, 17, 1602)},
+    {Min = 10, Max = 15, Quest = "Monkey", Mob = "Monkey", QuestNPC = CFrame.new(-1600, 36, 150), MobArea = CFrame.new(-1448, 51, 53)},
+    {Min = 15, Max = 30, Quest = "Gorilla", Mob = "Gorilla", QuestNPC = CFrame.new(-1139, 14, -520), MobArea = CFrame.new(-1091, 14, -577)},
+    {Min = 30, Max = 60, Quest = "Pirate", Mob = "Pirate", QuestNPC = CFrame.new(-1141, 4, 3830), MobArea = CFrame.new(-1105, 4, 3873)},
+    {Min = 60, Max = 90, Quest = "BuggyPirate", Mob = "Brute", QuestNPC = CFrame.new(-1141, 4, 3830), MobArea = CFrame.new(-1164, 4, 3874)},
+    {Min = 90, Max = 120, Quest = "DesertBandit", Mob = "Desert Bandit", QuestNPC = CFrame.new(894, 7, 4391), MobArea = CFrame.new(1079, 6, 4128)},
+    {Min = 120, Max = 150, Quest = "DesertOfficer", Mob = "Desert Officer", QuestNPC = CFrame.new(894, 7, 4391), MobArea = CFrame.new(1542, 12, 4436)},
+    {Min = 150, Max = 180, Quest = "SnowBandit", Mob = "Snow Bandit", QuestNPC = CFrame.new(1386, 87, -1296), MobArea = CFrame.new(1364, 87, -1274)},
+    {Min = 180, Max = 210, Quest = "SnowOfficer", Mob = "Snowman", QuestNPC = CFrame.new(1386, 87, -1296), MobArea = CFrame.new(1238, 139, -1487)},
+    {Min = 210, Max = 250, Quest = "MarineCadet", Mob = "Marine Rear Admiral", QuestNPC = CFrame.new(-4914, 50, 4279), MobArea = CFrame.new(-4847, 56, 4334)},
+    {Min = 250, Max = 275, Quest = "MarineRecruit", Mob = "Marine Captain", QuestNPC = CFrame.new(-4914, 50, 4279), MobArea = CFrame.new(-4915, 78, 4388)},
+    {Min = 275, Max = 300, Quest = "SkyBandit", Mob = "Sky Bandit", QuestNPC = CFrame.new(-4841, 717, -2623), MobArea = CFrame.new(-4944, 717, -2804)},
+    {Min = 300, Max = 330, Quest = "DarkMaster", Mob = "Dark Master", QuestNPC = CFrame.new(-4841, 717, -2623), MobArea = CFrame.new(-5126, 304, -2863)},
+    {Min = 330, Max = 375, Quest = "Prisoner", Mob = "Prisoner", QuestNPC = CFrame.new(4878, 6, 745), MobArea = CFrame.new(4949, 6, 735)},
+    {Min = 375, Max = 400, Quest = "DangerousPrisoner", Mob = "Dangerous Prisoner", QuestNPC = CFrame.new(5228, 1, 479), MobArea = CFrame.new(5190, 1, 558)},
+    {Min = 400, Max = 450, Quest = "TorturedPrisoner", Mob = "Scared Prisoner", QuestNPC = CFrame.new(5228, 1, 479), MobArea = CFrame.new(5365, 1, 476)},
+    {Min = 450, Max = 475, Quest = "Gladiator", Mob = "Toga Warrior", QuestNPC = CFrame.new(-1581, 7, -2986), MobArea = CFrame.new(-1430, 8, -2823)},
+    {Min = 475, Max = 525, Quest = "MagmaNinja", Mob = "Military Soldier", QuestNPC = CFrame.new(-5314, 12, 8516), MobArea = CFrame.new(-5471, 12, 8520)},
+    {Min = 525, Max = 550, Quest = "MagmaSoldier", Mob = "Military Spy", QuestNPC = CFrame.new(-5314, 12, 8516), MobArea = CFrame.new(-5657, 46, 8640)},
+    {Min = 550, Max = 625, Quest = "FishmanWarrior", Mob = "Fishman Warrior", QuestNPC = CFrame.new(61076, 12, 1580), MobArea = CFrame.new(61235, 12, 1585)},
+    {Min = 625, Max = 675, Quest = "FishmanCommando", Mob = "Fishman Commando", QuestNPC = CFrame.new(61509, 12, 1241), MobArea = CFrame.new(61634, 12, 1298)},
+    {Min = 675, Max = 700, Quest = "GodGuard", Mob = "God's Guard", QuestNPC = CFrame.new(-7862, 5546, -380), MobArea = CFrame.new(-7920, 5546, -507)},
+    {Min = 700, Max = 750, Quest = "Shanda", Mob = "Shanda", QuestNPC = CFrame.new(-7862, 5546, -380), MobArea = CFrame.new(-7950, 5546, -600)},
 }
 
--- Boss Database with spawn times
+-- All Sea 1 Bosses
 local Sea1Bosses = {
-    {Name = "Gorilla King", Level = 25, CFrame = CFrame.new(-1129.09, 15.55, -605.25), SpawnTime = 0},
-    {Name = "Bobby", Level = 55, CFrame = CFrame.new(-1174.97, 4.55, 3809.93), SpawnTime = 0},
-    {Name = "Yeti", Level = 110, CFrame = CFrame.new(1194.79, 137.55, -1355.08), SpawnTime = 0},
-    {Name = "Mob Leader", Level = 120, CFrame = CFrame.new(-1134.30, 135.55, 5174.88), SpawnTime = 0},
-    {Name = "Vice Admiral", Level = 130, CFrame = CFrame.new(-4846.98, 77.85, 4349.26), SpawnTime = 0},
-    {Name = "Warden", Level = 175, CFrame = CFrame.new(5299.32, 0.55, 473.83), SpawnTime = 0},
-    {Name = "Chief Warden", Level = 200, CFrame = CFrame.new(5579.44, 0.55, 314.18), SpawnTime = 0},
-    {Name = "Swan", Level = 225, CFrame = CFrame.new(5522.22, 65.55, 869.10), SpawnTime = 0},
-    {Name = "Saber Expert", Level = 200, CFrame = CFrame.new(-1447.42, 29.55, -29.94), SpawnTime = 0},
-    {Name = "Magma Admiral", Level = 350, CFrame = CFrame.new(-5765.26, 48.55, 8881.88), SpawnTime = 0},
-    {Name = "Fishman Lord", Level = 425, CFrame = CFrame.new(61364.95, 23.05, 1113.22), SpawnTime = 0},
-    {Name = "Wysper", Level = 500, CFrame = CFrame.new(-7946.10, 5634.55, -1211.03), SpawnTime = 0},
-    {Name = "Thunder God", Level = 575, CFrame = CFrame.new(-7920.10, 5634.55, -1426.50), SpawnTime = 0},
+    {Name = "Gorilla King", Level = 25, CFrame = CFrame.new(-1129, 16, -605), SpawnTime = 0},
+    {Name = "Bobby", Level = 55, CFrame = CFrame.new(-1175, 5, 3810), SpawnTime = 0},
+    {Name = "Yeti", Level = 110, CFrame = CFrame.new(1195, 138, -1355), SpawnTime = 0},
+    {Name = "Mob Leader", Level = 120, CFrame = CFrame.new(-1134, 136, 5175), SpawnTime = 0},
+    {Name = "Vice Admiral", Level = 130, CFrame = CFrame.new(-4847, 78, 4349), SpawnTime = 0},
+    {Name = "Warden", Level = 175, CFrame = CFrame.new(5299, 1, 474), SpawnTime = 0},
+    {Name = "Chief Warden", Level = 200, CFrame = CFrame.new(5579, 1, 314), SpawnTime = 0},
+    {Name = "Swan", Level = 225, CFrame = CFrame.new(5522, 66, 869), SpawnTime = 0},
+    {Name = "Saber Expert", Level = 200, CFrame = CFrame.new(-1447, 30, -30), SpawnTime = 0},
+    {Name = "Magma Admiral", Level = 350, CFrame = CFrame.new(-5765, 49, 8882), SpawnTime = 0},
+    {Name = "Fishman Lord", Level = 425, CFrame = CFrame.new(61365, 23, 1113), SpawnTime = 0},
+    {Name = "Wysper", Level = 500, CFrame = CFrame.new(-7946, 5635, -1211), SpawnTime = 0},
+    {Name = "Thunder God", Level = 575, CFrame = CFrame.new(-7920, 5635, -1427), SpawnTime = 0},
     -- Rare Bosses
-    {Name = "The Saw", Level = 100, CFrame = CFrame.new(-292.23, 72.05, 2075.95), SpawnTime = 75*60, Rare = true},
-    {Name = "Greybeard", Level = 750, CFrame = CFrame.new(-4988.31, 77.85, 4379.52), SpawnTime = 6*60*60, Rare = true},
+    {Name = "The Saw", Level = 100, CFrame = CFrame.new(-292, 72, 2076), SpawnTime = 75*60, Rare = true},
+    {Name = "Greybeard", Level = 750, CFrame = CFrame.new(-4988, 78, 4380), SpawnTime = 6*60*60, Rare = true},
+    {Name = "Ice Admiral", Level = 700, CFrame = CFrame.new(1579, -480, -528), SpawnTime = 20*60, Rare = true},
 }
 
--- Island Teleports
+-- Sea 1 Islands (from dump)
 local Sea1Islands = {
-    {Name = "Starter Island", CFrame = CFrame.new(1040, 50, 1547)},
-    {Name = "Jungle", CFrame = CFrame.new(-1613, 80, 153)},
-    {Name = "Pirate Village", CFrame = CFrame.new(-1139, 50, 3825)},
-    {Name = "Desert", CFrame = CFrame.new(940, 50, 4325)},
-    {Name = "Frozen Village", CFrame = CFrame.new(1192, 120, -1291)},
-    {Name = "Marine Fortress", CFrame = CFrame.new(-4914, 90, 4281)},
-    {Name = "Middle Island", CFrame = CFrame.new(-289, 100, 2071)},
-    {Name = "Skylands", CFrame = CFrame.new(-4869, 750, -2622)},
-    {Name = "Prison", CFrame = CFrame.new(4851, 50, 740)},
-    {Name = "Colosseum", CFrame = CFrame.new(-1428, 50, -2858)},
-    {Name = "Magma Village", CFrame = CFrame.new(-5280, 50, 8515)},
-    {Name = "Underwater City", CFrame = CFrame.new(61163, 50, 1819)},
-    {Name = "Upper Skylands", CFrame = CFrame.new(-7894, 5580, -380)},
-    {Name = "Fountain City", CFrame = CFrame.new(5129, 70, 4106)},
-    {Name = "Frozen Cave (Ice Admiral)", CFrame = CFrame.new(1579, -480, -528)},
+    {Name = "Starter Island", CFrame = CFrame.new(1085, 62, 1237)},
+    {Name = "Jungle", CFrame = CFrame.new(-1761, 28, -271)},
+    {Name = "Pirate Village", CFrame = CFrame.new(-1321, 59, 3958)},
+    {Name = "Desert", CFrame = CFrame.new(907, 49, 4134)},
+    {Name = "Frozen Village", CFrame = CFrame.new(1336, 84, -1332)},
+    {Name = "Marine Fortress", CFrame = CFrame.new(-5296, 81, 4456)},
+    {Name = "Middle Island", CFrame = CFrame.new(-2880, 46, 5292)},
+    {Name = "Skylands", CFrame = CFrame.new(-4851, 763, -2633)},
+    {Name = "Upper Skylands", CFrame = CFrame.new(-8034, 5651, -1994)},
+    {Name = "Prison", CFrame = CFrame.new(4878, 47, 685)},
+    {Name = "Colosseum", CFrame = CFrame.new(-1544, 51, -3018)},
+    {Name = "Magma Village", CFrame = CFrame.new(-5446, 113, 8806)},
+    {Name = "Underwater City", CFrame = CFrame.new(61352, 64, 1502)},
+    {Name = "Fountain City", CFrame = CFrame.new(6191, 53, 3945)},
+    {Name = "Blox Fruit Dealer", CFrame = CFrame.new(-2534, 5, 2060)},
+    {Name = "Blox Fruit Gacha", CFrame = CFrame.new(-1442, 61, 4)},
+}
+
+-- Special NPCs and Items locations
+local SpecialLocations = {
+    -- Haki
+    {Name = "Buso Trainer (Armament)", CFrame = CFrame.new(-1138, 14, -520), Cost = 25000, Level = 80},
+    {Name = "Ken Trainer (Observation)", CFrame = CFrame.new(-7894, 5580, -380), Cost = 750000, Level = 300},
+    -- Abilities
+    {Name = "Ability Teacher (Geppo/Soru)", CFrame = CFrame.new(-5314, 12, 8516), GeppoCost = 10000, SoruCost = 100000},
+    -- Fighting Styles
+    {Name = "Dark Step Trainer", CFrame = CFrame.new(-1141, 4, 3830), Cost = 150000},
+    {Name = "Electric Trainer", CFrame = CFrame.new(-4841, 717, -2623), Cost = 500000},
+    {Name = "Water Kung Fu Trainer", CFrame = CFrame.new(61076, -50, 1580), Cost = 750000},
+    -- Accessories
+    {Name = "Black Cape", CFrame = CFrame.new(-379, 85, 2088)},
+    {Name = "Tomoe Ring", CFrame = CFrame.new(-4900, 100, 4350)},
+    {Name = "Pipe", CFrame = CFrame.new(-1280, 50, 3950)},
+}
+
+-- Weapon types for auto-equip
+local WeaponTypes = {
+    Melee = {"Combat", "Dark Step", "Electro", "Water Kung Fu", "Dragon Breath", "Superhuman", "Death Step", "Sharkman Karate", "Electric Claw", "Dragon Talon", "Godhuman"},
+    Sword = {"Cutlass", "Katana", "Pipe", "Dual Katana", "Iron Mace", "Triple Katana", "Dual-Headed Blade", "Bisento", "Trident", "Soul Cane", "Saber", "Pole (1st Form)", "Pole (2nd Form)", "Shisui", "Saddi", "Wando", "Shark Saw"},
+    Gun = {"Slingshot", "Musket", "Flintlock", "Cannon", "Refined Slingshot", "Refined Flintlock", "Kabucha", "Serpent Bow"},
+    Fruit = {}, -- Will be filled dynamically
 }
 
 -- ============================================================================
@@ -232,63 +198,112 @@ local Sea1Islands = {
 -- ============================================================================
 
 local State = {
-    -- Farming
+    -- Main Farm
     AutoFarm = false,
-    AutoQuest = false,
-    BringMobs = false,
-    FreezeMobs = false,
-    KillAura = false,
+    AutoFarmNearest = false,
+    AutoQuest = true,
+    BringMobs = true, -- ON by default
+    FreezeMobs = true, -- ON by default
+    KillAura = true, -- ON by default
+    HitboxExpand = true, -- ON by default
+    SafeMode = false,
+    FastAttack = true,
+    AntiStuck = true,
+    
+    -- Weapon
+    SelectedWeaponType = "Melee",
+    AutoEquip = true,
+    
+    -- Mastery
+    MasteryFarmSword = false,
+    MasteryFarmGun = false,
+    MasteryFarmFruit = false,
+    MasteryHealthThreshold = 30,
+    
+    -- Fighting Styles
+    AutoSuperhuman = false,
+    AutoDeathStep = false,
+    AutoSharkman = false,
+    AutoElectricClaw = false,
+    AutoDragonTalon = false,
+    AutoGodhuman = false,
     
     -- Boss
     AutoBoss = false,
     SelectedBoss = nil,
     ServerHopBoss = false,
     
+    -- Sea 1 Items
+    AutoSaber = false,
+    AutoPole = false,
+    AutoTrident = false,
+    AutoSaw = false,
+    AutoGreybeard = false,
+    AutoBlackCape = false,
+    AutoTomoeRing = false,
+    AutoPipe = false,
+    AutoObsHaki = false,
+    AutoArmHaki = true, -- ON by default
+    AutoGeppo = false,
+    AutoSoru = false,
+    
+    -- Stats
+    AutoStats = false,
+    StatPriority = "Melee",
+    PointsPerAdd = 3,
+    
+    -- Combat/PVP
+    PlayerKillAura = false,
+    KillAuraRange = 50,
+    Aimbot = false,
+    SilentAim = false,
+    SilentAimFOV = 100,
+    ShowFOV = false,
+    SafeZone = false,
+    SafeZoneHP = 30,
+    ClickTP = false,
+    InfiniteEnergy = true, -- ON by default
+    NoCooldown = false,
+    
     -- ESP
+    PlayerESP = false,
     MobESP = false,
     BossESP = false,
-    PlayerESP = false,
     FruitESP = false,
     ChestESP = false,
+    IslandESP = false,
+    ESPBox = false,
+    ESPTracers = false,
+    ESPHealth = true,
+    ESPDistance = true,
     
-    -- Utility
-    FruitSniper = false,
-    ChestFarm = false,
-    
-    -- Combat
-    InfiniteEnergy = false,
-    AutoHaki = false,
-    HitboxExpand = false,
+    -- Player Mods
+    WalkSpeed = 16,
+    JumpPower = 50,
+    InfiniteJump = false,
+    Fly = false,
+    FlySpeed = 100,
+    NoClip = false,
+    SpinBot = false,
     
     -- Misc
-    AutoStats = false,
-    NoClip = false,
-    AntiAFK = true,
-    
-    -- Performance
+    ChestFarm = false,
+    FruitSniper = false,
+    RemoveFog = false,
     FPSBoost = false,
+    AntiAFK = true,
+    AutoTeam = nil, -- "Pirate" or "Marine"
+    DiscordWebhook = "",
 }
 
 local Settings = {
-    -- Farm
-    FarmHeight = 15, -- Height above mob
-    FarmDistance = 3, -- Distance in front
-    BringRadius = 100, -- Radius to bring mobs
-    
-    -- Tween
-    TweenSpeed = 200, -- Studs per second
-    
-    -- Hitbox
-    HitboxSize = 50, -- Expanded hitbox size
-    
-    -- Chest
+    FarmHeight = 15,
+    FarmDistance = 3,
+    BringRadius = 150,
+    TweenSpeed = 300,
+    HitboxSize = 75,
+    AttackDelay = 0.1,
     ChestsBeforeReset = 3,
-    
-    -- Stats
-    StatPriority = "Melee",
-    
-    -- Boss
-    BossName = nil,
 }
 
 -- Runtime
@@ -296,6 +311,7 @@ local Connections = {}
 local ESPCache = {}
 local CurrentTween = nil
 local ChestCount = 0
+local LastAttack = 0
 
 -- ============================================================================
 -- UTILITY FUNCTIONS
@@ -320,32 +336,34 @@ local function isAlive()
     return hum and hum.Health > 0
 end
 
+local function getEnemiesFolder()
+    return Workspace:FindFirstChild("Enemies")
+end
+
 -- ============================================================================
--- TWEEN MOVEMENT (Anti-Detection)
+-- MOVEMENT SYSTEM
 -- ============================================================================
 
-local function stopCurrentTween()
+local function stopTween()
     if CurrentTween then
         CurrentTween:Cancel()
         CurrentTween = nil
     end
 end
 
+-- Smooth tween movement
 local function tweenTo(targetCFrame, callback)
-    stopCurrentTween()
+    stopTween()
     
     local hrp = getHRP()
     if not hrp then return end
     
     local distance = (hrp.Position - targetCFrame.Position).Magnitude
     local tweenTime = distance / Settings.TweenSpeed
-    
-    -- Minimum time to prevent instant teleport detection
     tweenTime = math.max(tweenTime, 0.1)
     
     local tweenInfo = TweenInfo.new(tweenTime, Enum.EasingStyle.Linear)
     CurrentTween = TweenService:Create(hrp, tweenInfo, {CFrame = targetCFrame})
-    
     CurrentTween:Play()
     
     if callback then
@@ -359,19 +377,17 @@ local function tweenTo(targetCFrame, callback)
     end
 end
 
-local function tweenToPosition(position, yOffset)
-    yOffset = yOffset or Settings.FarmHeight
-    local targetCFrame = CFrame.new(position.X, position.Y + yOffset, position.Z)
-    tweenTo(targetCFrame)
+-- INSTANT teleport (for chests, no delay)
+local function instantTP(targetCFrame)
+    local hrp = getHRP()
+    if hrp then
+        hrp.CFrame = targetCFrame
+    end
 end
 
 -- ============================================================================
 -- MOB FUNCTIONS
 -- ============================================================================
-
-local function getEnemiesFolder()
-    return Workspace:FindFirstChild("Enemies")
-end
 
 local function getMobByName(name)
     local enemies = getEnemiesFolder()
@@ -404,7 +420,6 @@ local function getNearestMob(targetName, maxDist)
             local mobHRP = mob:FindFirstChild("HumanoidRootPart")
             
             if hum and hum.Health > 0 and mobHRP then
-                -- Filter by name if specified
                 if not targetName or mob.Name == targetName then
                     local dist = (hrp.Position - mobHRP.Position).Magnitude
                     if dist < nearestDist then
@@ -419,6 +434,35 @@ local function getNearestMob(targetName, maxDist)
     return nearest, nearestDist
 end
 
+local function getAllMobsInRadius(radius, targetName)
+    local hrp = getHRP()
+    if not hrp then return {} end
+    
+    local enemies = getEnemiesFolder()
+    if not enemies then return {} end
+    
+    local mobs = {}
+    
+    for _, mob in ipairs(enemies:GetChildren()) do
+        if mob:IsA("Model") then
+            local hum = mob:FindFirstChildOfClass("Humanoid")
+            local mobHRP = mob:FindFirstChild("HumanoidRootPart")
+            
+            if hum and hum.Health > 0 and mobHRP then
+                if not targetName or mob.Name == targetName then
+                    local dist = (hrp.Position - mobHRP.Position).Magnitude
+                    if dist < radius then
+                        table.insert(mobs, {Mob = mob, Distance = dist})
+                    end
+                end
+            end
+        end
+    end
+    
+    return mobs
+end
+
+-- Bring mob to player (ON by default)
 local function bringMob(mob)
     if not mob then return end
     
@@ -430,6 +474,7 @@ local function bringMob(mob)
     end
 end
 
+-- Freeze mob in place (ON by default)
 local function freezeMob(mob)
     if not mob then return end
     
@@ -440,46 +485,22 @@ local function freezeMob(mob)
     end
 end
 
-local function unfreezeMob(mob)
-    if not mob then return end
-    
-    local mobHRP = mob:FindFirstChild("HumanoidRootPart")
-    if mobHRP then
-        mobHRP.Anchored = false
-    end
-end
-
+-- Bring and freeze all mobs in radius
 local function bringAndFreezeMobs(targetName)
-    local hrp = getHRP()
-    if not hrp then return end
+    local mobs = getAllMobsInRadius(Settings.BringRadius, targetName)
     
-    local enemies = getEnemiesFolder()
-    if not enemies then return end
-    
-    for _, mob in ipairs(enemies:GetChildren()) do
-        if mob:IsA("Model") then
-            local hum = mob:FindFirstChildOfClass("Humanoid")
-            local mobHRP = mob:FindFirstChild("HumanoidRootPart")
-            
-            if hum and hum.Health > 0 and mobHRP then
-                if not targetName or mob.Name == targetName then
-                    local dist = (hrp.Position - mobHRP.Position).Magnitude
-                    if dist < Settings.BringRadius then
-                        bringMob(mob)
-                        if State.FreezeMobs then
-                            freezeMob(mob)
-                        end
-                    end
-                end
-            end
+    for _, data in ipairs(mobs) do
+        local mob = data.Mob
+        if State.BringMobs then
+            bringMob(mob)
+        end
+        if State.FreezeMobs then
+            freezeMob(mob)
         end
     end
 end
 
--- ============================================================================
--- HITBOX EXPANDER
--- ============================================================================
-
+-- Expand hitbox (ON by default)
 local function expandHitbox(mob, size)
     if not mob then return end
     
@@ -503,19 +524,29 @@ local function expandAllHitboxes()
 end
 
 -- ============================================================================
--- ATTACK SYSTEM (Remote-Based, No Mouse Interference)
+-- COMBAT SYSTEM (Remote-Based - No Mouse Interference)
 -- ============================================================================
 
-local function equipTool(toolName)
-    local backpack = LocalPlayer:FindFirstChild("Backpack")
+local function getBackpack()
+    return LocalPlayer:FindFirstChild("Backpack")
+end
+
+local function getEquippedTool()
     local char = getCharacter()
-    if not backpack or not char then return end
+    if char then
+        return char:FindFirstChildOfClass("Tool")
+    end
+    return nil
+end
+
+local function equipTool(toolName)
+    local backpack = getBackpack()
+    local char = getCharacter()
+    if not backpack or not char then return false end
     
-    -- Check if already equipped
-    local equipped = char:FindFirstChildOfClass("Tool")
+    local equipped = getEquippedTool()
     if equipped and equipped.Name == toolName then return true end
     
-    -- Find in backpack
     local tool = backpack:FindFirstChild(toolName)
     if tool then
         local hum = getHumanoid()
@@ -528,35 +559,54 @@ local function equipTool(toolName)
     return false
 end
 
-local function getEquippedWeapon()
-    local char = getCharacter()
-    if char then
-        return char:FindFirstChildOfClass("Tool")
+local function equipBestWeapon()
+    if not State.AutoEquip then return end
+    
+    local backpack = getBackpack()
+    if not backpack then return end
+    
+    local weaponList = WeaponTypes[State.SelectedWeaponType]
+    if not weaponList then return end
+    
+    -- Try to equip in priority order
+    for _, weaponName in ipairs(weaponList) do
+        if backpack:FindFirstChild(weaponName) then
+            equipTool(weaponName)
+            return
+        end
     end
-    return nil
 end
 
-local function attackWithWeapon()
-    local weapon = getEquippedWeapon()
+-- Attack using game remotes (not mouse clicks)
+local function attackRemote()
+    local weapon = getEquippedTool()
     if not weapon then return end
     
-    -- Fire weapon remote (works for most weapons in Blox Fruits)
+    -- Rate limit attacks
+    local now = tick()
+    if now - LastAttack < Settings.AttackDelay then return end
+    LastAttack = now
+    
+    -- Fire weapon's remote
     local remote = weapon:FindFirstChild("RemoteEvent") or weapon:FindFirstChildOfClass("RemoteEvent")
     if remote then
-        pcall(function()
-            remote:FireServer()
-        end)
+        pcall(function() remote:FireServer() end)
     end
     
-    -- Alternative: Use Click remote
+    -- Click remote
     local clickRemote = weapon:FindFirstChild("Click")
     if clickRemote then
-        pcall(function()
-            clickRemote:FireServer()
-        end)
+        pcall(function() clickRemote:FireServer() end)
+    end
+    
+    -- Alternative: Mouse button remote
+    local mouseRemote = weapon:FindFirstChild("MouseButton1Click")
+    if mouseRemote then
+        pcall(function() mouseRemote:FireServer() end)
     end
 end
 
+-- Attack specific mob
 local function attackMob(mob)
     if not mob or not isAlive() then return end
     
@@ -565,43 +615,43 @@ local function attackMob(mob)
     
     if not mobHRP or not hrp then return end
     
-    -- Position above mob
-    local targetCFrame = mobHRP.CFrame * CFrame.new(0, Settings.FarmHeight, 0)
-    hrp.CFrame = targetCFrame
-    
     -- Look at mob
     hrp.CFrame = CFrame.lookAt(hrp.Position, mobHRP.Position)
     
-    -- Attack using remote
-    attackWithWeapon()
+    -- Attack
+    attackRemote()
 end
 
--- Kill Aura (attacks all nearby mobs)
-local function killAura()
+-- Kill Aura - damages all mobs nearby (ON by default for raids)
+local function killAura(targetName)
     local hrp = getHRP()
     if not hrp then return end
     
-    local enemies = getEnemiesFolder()
-    if not enemies then return end
+    local mobs = getAllMobsInRadius(State.KillAuraRange, targetName)
     
-    for _, mob in ipairs(enemies:GetChildren()) do
-        if mob:IsA("Model") then
-            local hum = mob:FindFirstChildOfClass("Humanoid")
-            local mobHRP = mob:FindFirstChild("HumanoidRootPart")
-            
-            if hum and hum.Health > 0 and mobHRP then
-                local dist = (hrp.Position - mobHRP.Position).Magnitude
-                if dist < 100 then
-                    -- Damage via game mechanics
-                    attackWithWeapon()
-                end
+    for _, data in ipairs(mobs) do
+        local mob = data.Mob
+        local mobHRP = mob:FindFirstChild("HumanoidRootPart")
+        
+        if mobHRP then
+            -- Teleport mob to weapon range
+            if State.BringMobs then
+                bringMob(mob)
             end
+            
+            -- Expand hitbox
+            if State.HitboxExpand then
+                expandHitbox(mob, Settings.HitboxSize)
+            end
+            
+            -- Attack
+            attackRemote()
         end
     end
 end
 
 -- ============================================================================
--- QUEST SYSTEM (Proper Remote Calls)
+-- QUEST SYSTEM
 -- ============================================================================
 
 local function hasQuest()
@@ -624,47 +674,37 @@ local function getQuestForLevel(level)
             return quest
         end
     end
-    -- Return last quest if over max
     return Sea1Quests[#Sea1Quests]
 end
 
 local function acceptQuest(questData)
     if not questData then return false end
     
-    -- Tween to NPC
+    -- Tween to quest NPC
     tweenTo(questData.QuestNPC * CFrame.new(0, 3, 0))
     task.wait(0.3)
     
-    -- Accept quest via remote
-    local result = invokeRemote("StartQuest", questData.Quest, 1)
+    -- Accept via remote
+    invokeRemote("StartQuest", questData.Quest, 1)
     task.wait(0.2)
     
     return hasQuest()
 end
 
-local function getQuestMobName()
-    -- Read from quest UI what mob we need
-    local gui = LocalPlayer:FindFirstChild("PlayerGui")
-    if gui then
-        local main = gui:FindFirstChild("Main")
-        if main then
-            local quest = main:FindFirstChild("Quest")
-            if quest then
-                local container = quest:FindFirstChild("Container")
-                if container then
-                    local title = container:FindFirstChild("Title")
-                    if title then
-                        return title.Text
-                    end
-                end
-            end
-        end
-    end
-    return nil
+-- ============================================================================
+-- HAKI SYSTEM
+-- ============================================================================
+
+local function activateArmamentHaki()
+    invokeRemote("Buso")
+end
+
+local function activateObservationHaki()
+    invokeRemote("Instinct")
 end
 
 -- ============================================================================
--- INFINITE ENERGY
+-- INFINITE ENERGY (ON by default)
 -- ============================================================================
 
 local EnergyHooked = false
@@ -676,7 +716,6 @@ local function hookEnergy()
     if data then
         local energy = data:FindFirstChild("Energy")
         if energy then
-            -- Keep energy at max
             Connections.Energy = RunService.Heartbeat:Connect(function()
                 if State.InfiniteEnergy then
                     if energy.Value < 100 then
@@ -690,37 +729,21 @@ local function hookEnergy()
 end
 
 -- ============================================================================
--- AUTO HAKI
+-- AUTO STATS
 -- ============================================================================
 
-local function toggleHaki()
-    -- Activate Enhancement (Buso) Haki
-    invokeRemote("Buso")
-end
-
-local function startAutoHaki()
-    if Connections.AutoHaki then return end
+local function addStats()
+    local points = getPoints()
+    if points <= 0 then return end
     
-    Connections.AutoHaki = task.spawn(function()
-        while State.AutoHaki do
-            toggleHaki()
-            task.wait(1)
-        end
-    end)
-end
-
-local function stopAutoHaki()
-    if Connections.AutoHaki then
-        task.cancel(Connections.AutoHaki)
-        Connections.AutoHaki = nil
-    end
+    invokeRemote("AddPoint", State.StatPriority, State.PointsPerAdd)
 end
 
 -- ============================================================================
--- ESP SYSTEM (Optimized, No Lag)
+-- ESP SYSTEM (Optimized - No Lag)
 -- ============================================================================
 
-local ESPUpdateRate = 0.5 -- Update every 0.5 seconds (prevents lag)
+local ESPUpdateRate = 0.5
 local LastESPUpdate = 0
 
 local function createESPBillboard(parent, text, color)
@@ -729,66 +752,97 @@ local function createESPBillboard(parent, text, color)
     
     local billboard = Instance.new("BillboardGui")
     billboard.Name = "FamyyESP"
-    billboard.Size = UDim2.new(0, 100, 0, 40)
+    billboard.Size = UDim2.new(0, 120, 0, 50)
     billboard.StudsOffset = Vector3.new(0, 3, 0)
     billboard.AlwaysOnTop = true
     billboard.Parent = parent
     
+    local container = Instance.new("Frame")
+    container.Name = "Container"
+    container.Size = UDim2.new(1, 0, 1, 0)
+    container.BackgroundTransparency = 1
+    container.Parent = billboard
+    
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Name = "Name"
-    nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
+    nameLabel.Size = UDim2.new(1, 0, 0.4, 0)
     nameLabel.BackgroundTransparency = 1
     nameLabel.Text = text
     nameLabel.TextColor3 = color
     nameLabel.TextStrokeTransparency = 0
+    nameLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
     nameLabel.Font = Enum.Font.GothamBold
     nameLabel.TextScaled = true
-    nameLabel.Parent = billboard
+    nameLabel.Parent = container
+    
+    local healthLabel = Instance.new("TextLabel")
+    healthLabel.Name = "Health"
+    healthLabel.Size = UDim2.new(1, 0, 0.3, 0)
+    healthLabel.Position = UDim2.new(0, 0, 0.4, 0)
+    healthLabel.BackgroundTransparency = 1
+    healthLabel.Text = ""
+    healthLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    healthLabel.TextStrokeTransparency = 0
+    healthLabel.Font = Enum.Font.GothamMedium
+    healthLabel.TextScaled = true
+    healthLabel.Parent = container
     
     local distLabel = Instance.new("TextLabel")
     distLabel.Name = "Distance"
-    distLabel.Size = UDim2.new(1, 0, 0.5, 0)
-    distLabel.Position = UDim2.new(0, 0, 0.5, 0)
+    distLabel.Size = UDim2.new(1, 0, 0.3, 0)
+    distLabel.Position = UDim2.new(0, 0, 0.7, 0)
     distLabel.BackgroundTransparency = 1
     distLabel.Text = "0m"
-    distLabel.TextColor3 = Color3.new(0.8, 0.8, 0.8)
+    distLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
     distLabel.TextStrokeTransparency = 0
     distLabel.Font = Enum.Font.Gotham
     distLabel.TextScaled = true
-    distLabel.Parent = billboard
+    distLabel.Parent = container
     
     return billboard
 end
 
 local function removeESP(object)
     local esp = object:FindFirstChild("FamyyESP")
-    if esp then
-        esp:Destroy()
-    end
+    if esp then esp:Destroy() end
     ESPCache[object] = nil
 end
 
-local function updateESPDistance(billboard)
+local function updateESP(billboard, parent)
     local hrp = getHRP()
     if not hrp or not billboard or not billboard.Parent then return end
     
-    local parent = billboard.Parent
-    local pos
+    local container = billboard:FindFirstChild("Container")
+    if not container then return end
     
+    -- Get position
+    local pos
     if parent:IsA("BasePart") then
         pos = parent.Position
     elseif parent:IsA("Model") then
-        local primaryPart = parent:FindFirstChild("HumanoidRootPart") or parent.PrimaryPart
-        if primaryPart then
-            pos = primaryPart.Position
-        end
+        local pp = parent:FindFirstChild("HumanoidRootPart") or parent.PrimaryPart
+        if pp then pos = pp.Position end
     end
     
     if pos then
-        local dist = math.floor((hrp.Position - pos).Magnitude)
-        local distLabel = billboard:FindFirstChild("Distance")
-        if distLabel then
-            distLabel.Text = dist .. "m"
+        -- Update distance
+        if State.ESPDistance then
+            local distLabel = container:FindFirstChild("Distance")
+            if distLabel then
+                local dist = math.floor((hrp.Position - pos).Magnitude)
+                distLabel.Text = dist .. "m"
+            end
+        end
+        
+        -- Update health
+        if State.ESPHealth then
+            local hum = parent:FindFirstChildOfClass("Humanoid")
+            if hum then
+                local healthLabel = container:FindFirstChild("Health")
+                if healthLabel then
+                    healthLabel.Text = math.floor(hum.Health) .. "/" .. math.floor(hum.MaxHealth)
+                end
+            end
         end
     end
 end
@@ -803,14 +857,14 @@ local function clearAllESP()
 end
 
 -- ============================================================================
--- FRUIT SNIPER
+-- FRUIT FUNCTIONS
 -- ============================================================================
 
 local function findFruits()
     local fruits = {}
     
     for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("Tool") and obj.Name:find("Fruit") then
+        if obj:IsA("Tool") and (obj.Name:find("Fruit") or obj:FindFirstChild("FruitType")) then
             table.insert(fruits, obj)
         end
     end
@@ -826,10 +880,11 @@ local function snipeFruit(fruit)
     
     Window.Notify("Fruit Sniper", "Found: " .. fruit.Name, 2, "success")
     
-    tweenTo(handle.CFrame * CFrame.new(0, 3, 0))
-    task.wait(0.5)
+    -- INSTANT teleport for fruits
+    instantTP(handle.CFrame * CFrame.new(0, 3, 0))
+    task.wait(0.2)
     
-    -- Touch to collect
+    -- Collect
     local hrp = getHRP()
     if hrp and firetouchinterest then
         firetouchinterest(hrp, handle, 0)
@@ -839,15 +894,28 @@ local function snipeFruit(fruit)
 end
 
 -- ============================================================================
--- CHEST FARM (With Anti-Kick Reset)
+-- CHEST FARM (INSTANT TELEPORT, Reset After 3)
 -- ============================================================================
 
 local function findChests()
     local chests = {}
     
     for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj.Name == "Chest" or (obj.Name:find("Chest") and obj:IsA("Model")) then
-            table.insert(chests, obj)
+        if obj.Name:find("Chest") and (obj:IsA("Model") or obj:IsA("BasePart")) then
+            -- Check if chest is available (not already collected)
+            local isAvailable = true
+            if obj:IsA("Model") then
+                local part = obj:FindFirstChildWhichIsA("BasePart")
+                if part and part.Transparency >= 0.9 then
+                    isAvailable = false
+                end
+            elseif obj.Transparency >= 0.9 then
+                isAvailable = false
+            end
+            
+            if isAvailable then
+                table.insert(chests, obj)
+            end
         end
     end
     
@@ -860,9 +928,11 @@ local function collectChest(chest)
     local part = chest:IsA("BasePart") and chest or chest:FindFirstChildWhichIsA("BasePart")
     if not part then return false end
     
-    tweenTo(part.CFrame * CFrame.new(0, 3, 0))
-    task.wait(0.3)
+    -- INSTANT teleport (no tween for chests)
+    instantTP(part.CFrame * CFrame.new(0, 3, 0))
+    task.wait(0.2)
     
+    -- Touch to collect
     local hrp = getHRP()
     if hrp and firetouchinterest then
         firetouchinterest(hrp, part, 0)
@@ -882,9 +952,25 @@ local function resetCharacter()
 end
 
 -- ============================================================================
--- NO CLIP
+-- PLAYER MODS
 -- ============================================================================
 
+local function setWalkSpeed(speed)
+    local hum = getHumanoid()
+    if hum then
+        hum.WalkSpeed = speed
+    end
+end
+
+local function setJumpPower(power)
+    local hum = getHumanoid()
+    if hum then
+        hum.JumpPower = power
+        hum.UseJumpPower = true
+    end
+end
+
+-- No Clip
 local function startNoClip()
     if Connections.NoClip then return end
     
@@ -909,39 +995,148 @@ local function stopNoClip()
     end
 end
 
+-- Fly
+local Flying = false
+local FlyBV = nil
+local FlyBG = nil
+
+local function startFly()
+    if Flying then return end
+    Flying = true
+    
+    local hrp = getHRP()
+    if not hrp then return end
+    
+    FlyBV = Instance.new("BodyVelocity")
+    FlyBV.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    FlyBV.Velocity = Vector3.new(0, 0, 0)
+    FlyBV.Parent = hrp
+    
+    FlyBG = Instance.new("BodyGyro")
+    FlyBG.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    FlyBG.P = 1000000
+    FlyBG.Parent = hrp
+    
+    Connections.Fly = RunService.RenderStepped:Connect(function()
+        if not Flying or not FlyBV then return end
+        
+        local camera = Workspace.CurrentCamera
+        local moveDir = Vector3.new(0, 0, 0)
+        
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            moveDir = moveDir + camera.CFrame.LookVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            moveDir = moveDir - camera.CFrame.LookVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            moveDir = moveDir - camera.CFrame.RightVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            moveDir = moveDir + camera.CFrame.RightVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            moveDir = moveDir + Vector3.new(0, 1, 0)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+            moveDir = moveDir - Vector3.new(0, 1, 0)
+        end
+        
+        if moveDir.Magnitude > 0 then
+            FlyBV.Velocity = moveDir.Unit * State.FlySpeed
+        else
+            FlyBV.Velocity = Vector3.new(0, 0, 0)
+        end
+        
+        if FlyBG then
+            FlyBG.CFrame = camera.CFrame
+        end
+    end)
+end
+
+local function stopFly()
+    Flying = false
+    
+    if FlyBV then FlyBV:Destroy() FlyBV = nil end
+    if FlyBG then FlyBG:Destroy() FlyBG = nil end
+    
+    if Connections.Fly then
+        Connections.Fly:Disconnect()
+        Connections.Fly = nil
+    end
+end
+
+-- Infinite Jump
+local function startInfiniteJump()
+    if Connections.InfiniteJump then return end
+    
+    Connections.InfiniteJump = UserInputService.JumpRequest:Connect(function()
+        if State.InfiniteJump and isAlive() then
+            local hum = getHumanoid()
+            if hum then
+                hum:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+        end
+    end)
+end
+
+local function stopInfiniteJump()
+    if Connections.InfiniteJump then
+        Connections.InfiniteJump:Disconnect()
+        Connections.InfiniteJump = nil
+    end
+end
+
+-- Spin Bot
+local function startSpinBot()
+    if Connections.SpinBot then return end
+    
+    Connections.SpinBot = RunService.RenderStepped:Connect(function()
+        if State.SpinBot and isAlive() then
+            local hrp = getHRP()
+            if hrp then
+                hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(15), 0)
+            end
+        end
+    end)
+end
+
+local function stopSpinBot()
+    if Connections.SpinBot then
+        Connections.SpinBot:Disconnect()
+        Connections.SpinBot = nil
+    end
+end
+
 -- ============================================================================
--- ANTI-AFK
+-- MISC FUNCTIONS
 -- ============================================================================
 
+-- Anti-AFK
 local function startAntiAFK()
     if Connections.AntiAFK then return end
     
     Connections.AntiAFK = LocalPlayer.Idled:Connect(function()
-        if VirtualUser then
+        if VirtualUser and State.AntiAFK then
             VirtualUser:CaptureController()
             VirtualUser:ClickButton2(Vector2.new())
         end
     end)
 end
 
--- ============================================================================
--- AUTO STATS
--- ============================================================================
-
-local function addStats()
-    local data = LocalPlayer:FindFirstChild("Data")
-    if not data then return end
+-- Remove Fog
+local function removeFog()
+    Lighting.FogEnd = 9e9
+    Lighting.FogStart = 9e9
     
-    local points = data:FindFirstChild("Points")
-    if not points or points.Value <= 0 then return end
-    
-    invokeRemote("AddPoint", Settings.StatPriority, 1)
+    for _, obj in ipairs(Lighting:GetDescendants()) do
+        if obj:IsA("Atmosphere") or obj:IsA("BlurEffect") or obj:IsA("DepthOfFieldEffect") then
+            obj.Enabled = false
+        end
+    end
 end
 
--- ============================================================================
--- PERFORMANCE / FPS BOOST
--- ============================================================================
-
+-- FPS Boost
 local function enableFPSBoost()
     settings().Rendering.QualityLevel = 1
     Lighting.GlobalShadows = false
@@ -956,6 +1151,24 @@ local function enableFPSBoost()
     end
 end
 
+-- Server Hop
+local function serverHop()
+    Window.Notify("Server Hop", "Finding new server...", 2, "info")
+    
+    pcall(function()
+        local servers = HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"))
+        for _, server in ipairs(servers.data) do
+            if server.id ~= game.JobId and server.playing < server.maxPlayers then
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, LocalPlayer)
+                return
+            end
+        end
+    end)
+    
+    -- Fallback
+    TeleportService:Teleport(game.PlaceId, LocalPlayer)
+end
+
 -- ============================================================================
 -- MAIN FARM LOOP
 -- ============================================================================
@@ -967,69 +1180,77 @@ local function startAutoFarm()
         while State.AutoFarm do
             if not isAlive() then
                 task.wait(1)
-                -- Wait for respawn
                 repeat task.wait(0.5) until isAlive()
                 task.wait(0.5)
             end
+            
+            -- Equip weapon
+            equipBestWeapon()
             
             local level = getLevel()
             local questData = getQuestForLevel(level)
             
             if questData then
                 -- Accept quest if needed
-                if not hasQuest() then
+                if State.AutoQuest and not hasQuest() then
                     acceptQuest(questData)
                     task.wait(0.5)
                 end
                 
                 -- Farm mobs
-                if hasQuest() then
-                    local mobName = questData.Mob
-                    local mob = getNearestMob(mobName, 9999)
-                    
-                    if mob then
-                        local mobHRP = mob:FindFirstChild("HumanoidRootPart")
-                        if mobHRP then
-                            -- Tween to mob (above it)
-                            local targetPos = mobHRP.CFrame * CFrame.new(0, Settings.FarmHeight, 0)
-                            tweenTo(targetPos)
-                            
-                            -- Bring and freeze mobs
-                            if State.BringMobs or State.FreezeMobs then
-                                bringAndFreezeMobs(mobName)
-                            end
-                            
-                            -- Expand hitbox
-                            if State.HitboxExpand then
-                                expandHitbox(mob, Settings.HitboxSize)
-                            end
-                            
-                            -- Attack
-                            attackMob(mob)
-                            
-                            -- Kill aura
-                            if State.KillAura then
-                                killAura()
-                            end
+                local mobName = questData.Mob
+                local mob = getNearestMob(mobName, 9999)
+                
+                if mob then
+                    local mobHRP = mob:FindFirstChild("HumanoidRootPart")
+                    if mobHRP then
+                        -- Position above mob
+                        local farmCFrame = mobHRP.CFrame * CFrame.new(0, Settings.FarmHeight, 0)
+                        
+                        if State.SafeMode then
+                            farmCFrame = mobHRP.CFrame * CFrame.new(0, 100, 0) -- High in sky
                         end
-                    else
-                        -- No mob found, go to spawn area
-                        tweenTo(questData.MobArea * CFrame.new(0, Settings.FarmHeight, 0))
+                        
+                        tweenTo(farmCFrame)
+                        
+                        -- Bring and freeze (ON by default)
+                        if State.BringMobs or State.FreezeMobs then
+                            bringAndFreezeMobs(mobName)
+                        end
+                        
+                        -- Expand hitbox (ON by default)
+                        if State.HitboxExpand then
+                            expandAllHitboxes()
+                        end
+                        
+                        -- Attack
+                        attackMob(mob)
+                        
+                        -- Kill aura (ON by default)
+                        if State.KillAura then
+                            killAura(mobName)
+                        end
                     end
+                else
+                    -- Go to mob spawn area
+                    tweenTo(questData.MobArea * CFrame.new(0, Settings.FarmHeight, 0))
                 end
             end
             
-            -- Auto haki
-            if State.AutoHaki then
-                toggleHaki()
+            -- Auto Haki (ON by default)
+            if State.AutoArmHaki then
+                activateArmamentHaki()
+            end
+            if State.AutoObsHaki then
+                activateObservationHaki()
             end
             
-            -- Auto stats
+            -- Auto Stats
             if State.AutoStats then
                 addStats()
             end
             
-            task.wait(0.1)
+            task.wait(Settings.AttackDelay)
         end
     end)
 end
@@ -1055,33 +1276,45 @@ local function startBossFarm()
                 repeat task.wait(0.5) until isAlive()
             end
             
-            if Settings.BossName then
-                local boss = getMobByName(Settings.BossName)
-                
-                if boss then
-                    local bossHRP = boss:FindFirstChild("HumanoidRootPart")
-                    local bossHum = boss:FindFirstChildOfClass("Humanoid")
-                    
-                    if bossHRP and bossHum then
-                        -- Tween to boss
-                        tweenTo(bossHRP.CFrame * CFrame.new(0, Settings.FarmHeight, 0))
-                        
-                        while bossHum and bossHum.Health > 0 and State.AutoBoss do
-                            attackMob(boss)
-                            task.wait(0.1)
-                        end
-                        
-                        Window.Notify("Boss Farm", Settings.BossName .. " killed!", 2, "success")
-                        
-                        if State.ServerHopBoss then
-                            task.wait(1)
-                            -- Server hop
-                            TeleportService:Teleport(game.PlaceId, LocalPlayer)
-                        end
+            if State.SelectedBoss then
+                local bossData = nil
+                for _, boss in ipairs(Sea1Bosses) do
+                    if boss.Name == State.SelectedBoss then
+                        bossData = boss
+                        break
                     end
-                else
-                    -- Boss not spawned, wait
-                    task.wait(1)
+                end
+                
+                if bossData then
+                    local boss = getMobByName(bossData.Name)
+                    
+                    if boss then
+                        local bossHRP = boss:FindFirstChild("HumanoidRootPart")
+                        local bossHum = boss:FindFirstChildOfClass("Humanoid")
+                        
+                        if bossHRP and bossHum then
+                            tweenTo(bossHRP.CFrame * CFrame.new(0, Settings.FarmHeight, 0))
+                            
+                            while bossHum and bossHum.Health > 0 and State.AutoBoss do
+                                if State.BringMobs then bringMob(boss) end
+                                if State.FreezeMobs then freezeMob(boss) end
+                                if State.HitboxExpand then expandHitbox(boss, Settings.HitboxSize) end
+                                attackMob(boss)
+                                task.wait(0.1)
+                            end
+                            
+                            Window.Notify("Boss Farm", bossData.Name .. " defeated!", 2, "success")
+                            
+                            if State.ServerHopBoss then
+                                task.wait(1)
+                                serverHop()
+                            end
+                        end
+                    else
+                        -- Boss not spawned, go to spawn location
+                        tweenTo(bossData.CFrame * CFrame.new(0, 10, 0))
+                        task.wait(1)
+                    end
                 end
             else
                 task.wait(1)
@@ -1113,10 +1346,18 @@ local function startMobESP()
                         local hum = mob:FindFirstChildOfClass("Humanoid")
                         if hum and hum.Health > 0 then
                             if not ESPCache[mob] then
-                                local esp = createESPBillboard(mob, mob.Name, Color3.fromRGB(255, 100, 100))
+                                local color = Color3.fromRGB(255, 100, 100)
+                                -- Check if boss
+                                for _, boss in ipairs(Sea1Bosses) do
+                                    if mob.Name == boss.Name then
+                                        color = Color3.fromRGB(255, 50, 255) -- Purple for bosses
+                                        break
+                                    end
+                                end
+                                local esp = createESPBillboard(mob, mob.Name, color)
                                 ESPCache[mob] = esp
                             else
-                                updateESPDistance(ESPCache[mob])
+                                updateESP(ESPCache[mob], mob)
                             end
                         else
                             removeESP(mob)
@@ -1151,7 +1392,7 @@ local function startFruitESP()
                     local esp = createESPBillboard(fruit, "[FRUIT] " .. fruit.Name, Color3.fromRGB(255, 215, 0))
                     ESPCache[fruit] = esp
                 else
-                    updateESPDistance(ESPCache[fruit])
+                    updateESP(ESPCache[fruit], fruit)
                 end
             end
             task.wait(ESPUpdateRate)
@@ -1163,6 +1404,29 @@ local function stopFruitESP()
     State.FruitESP = false
 end
 
+local function startChestESP()
+    if Connections.ChestESP then return end
+    
+    Connections.ChestESP = task.spawn(function()
+        while State.ChestESP do
+            local chests = findChests()
+            for _, chest in ipairs(chests) do
+                if not ESPCache[chest] then
+                    local esp = createESPBillboard(chest, "[CHEST]", Color3.fromRGB(100, 255, 100))
+                    ESPCache[chest] = esp
+                else
+                    updateESP(ESPCache[chest], chest)
+                end
+            end
+            task.wait(ESPUpdateRate)
+        end
+    end)
+end
+
+local function stopChestESP()
+    State.ChestESP = false
+end
+
 local function startFruitSniper()
     if Connections.FruitSniper then return end
     
@@ -1172,7 +1436,7 @@ local function startFruitSniper()
             if #fruits > 0 then
                 snipeFruit(fruits[1])
             end
-            task.wait(1)
+            task.wait(0.5)
         end
     end)
 end
@@ -1195,19 +1459,20 @@ local function startChestFarm()
                 
                 if collectChest(chest) then
                     ChestCount = ChestCount + 1
+                    Window.Notify("Chest Farm", "Collected chest #" .. ChestCount, 1, "success")
                     
                     if ChestCount >= Settings.ChestsBeforeReset then
-                        Window.Notify("Chest Farm", "Collected " .. ChestCount .. " chests, resetting...", 2, "info")
+                        Window.Notify("Chest Farm", "Resetting character...", 2, "info")
                         ChestCount = 0
                         resetCharacter()
-                        task.wait(3) -- Wait for respawn
+                        task.wait(3)
                     end
                 end
                 
-                task.wait(0.3)
+                task.wait(0.2)
             end
             
-            task.wait(1)
+            task.wait(0.5)
         end
     end)
 end
@@ -1221,18 +1486,23 @@ end
 -- ============================================================================
 
 -- Create Tabs
-local FarmTab = Window:CreateTab("Farm")
-local BossTab = Window:CreateTab("Boss")
-local ESPTab = Window:CreateTab("ESP")
-local UtilityTab = Window:CreateTab("Utility")
+local MainFarmTab = Window:CreateTab("Main Farm")
+local Sea1ItemsTab = Window:CreateTab("Sea 1 Items")
+local StatsTab = Window:CreateTab("Stats")
+local CombatTab = Window:CreateTab("Combat")
 local TeleportTab = Window:CreateTab("Teleport")
-local SettingsTab = Window:CreateTab("Settings")
+local ESPTab = Window:CreateTab("ESP")
+local PlayerTab = Window:CreateTab("Player")
+local MiscTab = Window:CreateTab("Misc")
 
--- === FARM TAB ===
-local AutoFarmSection = FarmTab:CreateSection("Auto Farm", true)
+-- ============================================================================
+-- MAIN FARM TAB
+-- ============================================================================
 
-AutoFarmSection:AddToggle({
-    Label = "Auto Farm",
+local FarmSection = MainFarmTab:CreateSection("Auto Farm", true)
+
+FarmSection:AddToggle({
+    Label = "Auto Farm Level",
     Default = false,
     Callback = function(v)
         State.AutoFarm = v
@@ -1246,108 +1516,143 @@ AutoFarmSection:AddToggle({
     end
 })
 
-AutoFarmSection:AddToggle({
+FarmSection:AddToggle({
+    Label = "Auto Quest",
+    Default = true,
+    Callback = function(v)
+        State.AutoQuest = v
+    end
+})
+
+local WeaponSection = MainFarmTab:CreateSection("Weapon", true)
+
+WeaponSection:AddDropdown({
+    Label = "Weapon Type",
+    Options = {"Melee", "Sword", "Gun", "Fruit"},
+    Default = "Melee",
+    Callback = function(v)
+        State.SelectedWeaponType = v
+    end
+})
+
+WeaponSection:AddToggle({
+    Label = "Auto Equip",
+    Default = true,
+    Callback = function(v)
+        State.AutoEquip = v
+    end
+})
+
+local MobSection = MainFarmTab:CreateSection("Mob Control", true)
+
+MobSection:AddLabel({Text = "These are ON by default for best farming", Bold = false})
+
+MobSection:AddToggle({
     Label = "Bring Mobs",
-    Default = false,
+    Default = true,
     Callback = function(v)
         State.BringMobs = v
     end
 })
 
-AutoFarmSection:AddToggle({
+MobSection:AddToggle({
     Label = "Freeze Mobs",
-    Default = false,
+    Default = true,
     Callback = function(v)
         State.FreezeMobs = v
     end
 })
 
-AutoFarmSection:AddToggle({
+MobSection:AddToggle({
     Label = "Kill Aura",
-    Default = false,
+    Default = true,
     Callback = function(v)
         State.KillAura = v
     end
 })
 
-AutoFarmSection:AddToggle({
+MobSection:AddToggle({
     Label = "Hitbox Expander",
-    Default = false,
+    Default = true,
     Callback = function(v)
         State.HitboxExpand = v
     end
 })
 
-AutoFarmSection:AddSlider({
+MobSection:AddSlider({
+    Label = "Bring Radius",
+    Min = 50,
+    Max = 300,
+    Default = 150,
+    Callback = function(v)
+        Settings.BringRadius = v
+    end
+})
+
+MobSection:AddSlider({
+    Label = "Hitbox Size",
+    Min = 25,
+    Max = 150,
+    Default = 75,
+    Callback = function(v)
+        Settings.HitboxSize = v
+    end
+})
+
+local FarmSettingsSection = MainFarmTab:CreateSection("Farm Settings", true)
+
+FarmSettingsSection:AddToggle({
+    Label = "Safe Mode (Farm from Sky)",
+    Default = false,
+    Callback = function(v)
+        State.SafeMode = v
+    end
+})
+
+FarmSettingsSection:AddToggle({
+    Label = "Fast Attack",
+    Default = true,
+    Callback = function(v)
+        State.FastAttack = v
+    end
+})
+
+FarmSettingsSection:AddSlider({
     Label = "Farm Height",
     Min = 5,
-    Max = 50,
+    Max = 100,
     Default = 15,
     Callback = function(v)
         Settings.FarmHeight = v
     end
 })
 
-AutoFarmSection:AddSlider({
+FarmSettingsSection:AddSlider({
     Label = "Tween Speed",
-    Min = 50,
+    Min = 100,
     Max = 500,
-    Default = 200,
+    Default = 300,
     Callback = function(v)
         Settings.TweenSpeed = v
     end
 })
 
-AutoFarmSection:AddSlider({
-    Label = "Hitbox Size",
-    Min = 10,
-    Max = 100,
-    Default = 50,
+FarmSettingsSection:AddSlider({
+    Label = "Attack Delay",
+    Min = 0.05,
+    Max = 0.5,
+    Default = 0.1,
+    Increment = 0.05,
     Callback = function(v)
-        Settings.HitboxSize = v
+        Settings.AttackDelay = v
     end
 })
 
--- Combat Section
-local CombatSection = FarmTab:CreateSection("Combat", true)
+-- Boss Farm Section
+local BossSection = MainFarmTab:CreateSection("Boss Farm", true)
 
-CombatSection:AddToggle({
-    Label = "Infinite Energy",
-    Default = false,
-    Callback = function(v)
-        State.InfiniteEnergy = v
-        if v then
-            hookEnergy()
-        end
-    end
-})
-
-CombatSection:AddToggle({
-    Label = "Auto Haki",
-    Default = false,
-    Callback = function(v)
-        State.AutoHaki = v
-    end
-})
-
-CombatSection:AddToggle({
-    Label = "No Clip",
-    Default = false,
-    Callback = function(v)
-        State.NoClip = v
-        if v then
-            startNoClip()
-        else
-            stopNoClip()
-        end
-    end
-})
-
--- === BOSS TAB ===
-local BossFarmSection = BossTab:CreateSection("Boss Farm", true)
-
-BossFarmSection:AddToggle({
-    Label = "Auto Boss",
+BossSection:AddToggle({
+    Label = "Auto Boss Farm",
     Default = false,
     Callback = function(v)
         State.AutoBoss = v
@@ -1359,7 +1664,7 @@ BossFarmSection:AddToggle({
     end
 })
 
-BossFarmSection:AddToggle({
+BossSection:AddToggle({
     Label = "Server Hop After Kill",
     Default = false,
     Callback = function(v)
@@ -1367,8 +1672,9 @@ BossFarmSection:AddToggle({
     end
 })
 
--- Boss selection buttons instead of dropdown (dropdown has issues)
-local BossListSection = BossTab:CreateSection("Select Boss", false)
+local SelectedBossLabel = BossSection:AddLabel({Text = "Selected: None", Bold = true})
+
+local BossSelectSection = MainFarmTab:CreateSection("Select Boss", false)
 
 for _, boss in ipairs(Sea1Bosses) do
     local label = boss.Name .. " [Lv." .. boss.Level .. "]"
@@ -1376,108 +1682,248 @@ for _, boss in ipairs(Sea1Bosses) do
         label = "[RARE] " .. label
     end
     
-    BossListSection:AddButton({
+    BossSelectSection:AddButton({
         Label = label,
         Style = boss.Rare and "primary" or "secondary",
         Callback = function()
-            Settings.BossName = boss.Name
+            State.SelectedBoss = boss.Name
+            SelectedBossLabel:SetText("Selected: " .. boss.Name)
             Window.Notify("Boss Farm", "Selected: " .. boss.Name, 2, "info")
         end
     })
 end
 
--- === ESP TAB ===
-local ESPSection = ESPTab:CreateSection("ESP Options", true)
+-- ============================================================================
+-- SEA 1 ITEMS TAB
+-- ============================================================================
 
-ESPSection:AddToggle({
-    Label = "Mob ESP",
+local HakiSection = Sea1ItemsTab:CreateSection("Haki", true)
+
+HakiSection:AddToggle({
+    Label = "Auto Armament Haki (Buso)",
+    Default = true,
+    Callback = function(v)
+        State.AutoArmHaki = v
+    end
+})
+
+HakiSection:AddToggle({
+    Label = "Auto Observation Haki (Ken)",
     Default = false,
     Callback = function(v)
-        State.MobESP = v
-        if v then
-            startMobESP()
-        else
-            stopMobESP()
-        end
+        State.AutoObsHaki = v
     end
 })
 
-ESPSection:AddToggle({
-    Label = "Fruit ESP",
-    Default = false,
-    Callback = function(v)
-        State.FruitESP = v
-        if v then
-            startFruitESP()
-        else
-            stopFruitESP()
-        end
-    end
-})
-
-ESPSection:AddButton({
-    Label = "Clear All ESP",
-    Style = "danger",
-    Callback = function()
-        clearAllESP()
-        Window.Notify("ESP", "Cleared all ESP", 2, "info")
-    end
-})
-
--- === UTILITY TAB ===
-local FruitSection = UtilityTab:CreateSection("Fruits", true)
-
-FruitSection:AddToggle({
-    Label = "Fruit Sniper",
-    Default = false,
-    Callback = function(v)
-        State.FruitSniper = v
-        if v then
-            startFruitSniper()
-            Window.Notify("Fruit Sniper", "Active!", 2, "success")
-        else
-            stopFruitSniper()
-        end
-    end
-})
-
-FruitSection:AddButton({
-    Label = "Scan Fruits",
+HakiSection:AddButton({
+    Label = "Buy Armament Haki ($25k)",
     Style = "secondary",
     Callback = function()
-        local fruits = findFruits()
-        Window.Notify("Fruit Scan", "Found " .. #fruits .. " fruits", 2, "info")
+        Window.Notify("Haki", "Purchasing Buso Haki...", 2, "info")
+        invokeRemote("Buso", "Buy")
     end
 })
 
-local ChestSection = UtilityTab:CreateSection("Chests", true)
+HakiSection:AddButton({
+    Label = "Buy Observation Haki ($750k)",
+    Style = "secondary",
+    Callback = function()
+        Window.Notify("Haki", "Purchasing Ken Haki...", 2, "info")
+        invokeRemote("Instinct", "Buy")
+    end
+})
 
-ChestSection:AddToggle({
-    Label = "Chest Farm",
+local AbilitiesSection = Sea1ItemsTab:CreateSection("Abilities", true)
+
+AbilitiesSection:AddButton({
+    Label = "Buy Sky Jump (Geppo) - $10k",
+    Style = "secondary",
+    Callback = function()
+        invokeRemote("BuyHaki", "Geppo")
+        Window.Notify("Abilities", "Purchased Geppo!", 2, "success")
+    end
+})
+
+AbilitiesSection:AddButton({
+    Label = "Buy Flash Step (Soru) - $100k",
+    Style = "secondary",
+    Callback = function()
+        invokeRemote("BuyHaki", "Soru")
+        Window.Notify("Abilities", "Purchased Soru!", 2, "success")
+    end
+})
+
+local QuestItemsSection = Sea1ItemsTab:CreateSection("Quest Items", true)
+
+QuestItemsSection:AddButton({
+    Label = "TP to Saber Expert (Lvl 200)",
+    Style = "primary",
+    Callback = function()
+        tweenTo(CFrame.new(-1447, 30, -30))
+        Window.Notify("Teleport", "Going to Saber Expert...", 2, "info")
+    end
+})
+
+QuestItemsSection:AddButton({
+    Label = "TP to Thunder God (Pole)",
+    Style = "primary",
+    Callback = function()
+        tweenTo(CFrame.new(-7920, 5635, -1427))
+        Window.Notify("Teleport", "Going to Thunder God...", 2, "info")
+    end
+})
+
+QuestItemsSection:AddButton({
+    Label = "TP to Fishman Lord (Trident)",
+    Style = "primary",
+    Callback = function()
+        tweenTo(CFrame.new(61365, 23, 1113))
+        Window.Notify("Teleport", "Going to Fishman Lord...", 2, "info")
+    end
+})
+
+QuestItemsSection:AddButton({
+    Label = "TP to The Saw (Shark Saw)",
+    Style = "primary",
+    Callback = function()
+        tweenTo(CFrame.new(-292, 72, 2076))
+        Window.Notify("Teleport", "Going to The Saw...", 2, "info")
+    end
+})
+
+QuestItemsSection:AddButton({
+    Label = "TP to Greybeard (Bisento)",
+    Style = "primary",
+    Callback = function()
+        tweenTo(CFrame.new(-4988, 78, 4380))
+        Window.Notify("Teleport", "Going to Greybeard...", 2, "info")
+    end
+})
+
+local AccessoriesSection = Sea1ItemsTab:CreateSection("Accessories", true)
+
+AccessoriesSection:AddButton({
+    Label = "TP to Black Cape",
+    Style = "secondary",
+    Callback = function()
+        tweenTo(CFrame.new(-379, 85, 2088))
+    end
+})
+
+AccessoriesSection:AddButton({
+    Label = "TP to Tomoe Ring",
+    Style = "secondary",
+    Callback = function()
+        tweenTo(CFrame.new(-4900, 100, 4350))
+    end
+})
+
+-- ============================================================================
+-- STATS TAB
+-- ============================================================================
+
+local AutoStatsSection = StatsTab:CreateSection("Auto Stats", true)
+
+AutoStatsSection:AddToggle({
+    Label = "Auto Add Stats",
     Default = false,
     Callback = function(v)
-        State.ChestFarm = v
-        if v then
-            startChestFarm()
-            Window.Notify("Chest Farm", "Started! Resets after 3 chests.", 2, "success")
-        else
-            stopChestFarm()
-        end
+        State.AutoStats = v
     end
 })
 
-ChestSection:AddSlider({
-    Label = "Chests Before Reset",
+AutoStatsSection:AddSlider({
+    Label = "Points Per Add",
     Min = 1,
     Max = 10,
     Default = 3,
     Callback = function(v)
-        Settings.ChestsBeforeReset = v
+        State.PointsPerAdd = v
     end
 })
 
--- === TELEPORT TAB ===
-local IslandSection = TeleportTab:CreateSection("Islands", true)
+local StatPrioritySection = StatsTab:CreateSection("Stat Priority", true)
+
+for _, stat in ipairs({"Melee", "Defense", "Sword", "Gun", "Blox Fruit"}) do
+    StatPrioritySection:AddButton({
+        Label = stat,
+        Style = "secondary",
+        Callback = function()
+            State.StatPriority = stat
+            Window.Notify("Stats", "Priority set to: " .. stat, 2, "info")
+        end
+    })
+end
+
+local ManualStatsSection = StatsTab:CreateSection("Manual Add", true)
+
+ManualStatsSection:AddButton({
+    Label = "Add All Points to Selected",
+    Style = "primary",
+    Callback = function()
+        local points = getPoints()
+        if points > 0 then
+            invokeRemote("AddPoint", State.StatPriority, points)
+            Window.Notify("Stats", "Added " .. points .. " to " .. State.StatPriority, 2, "success")
+        end
+    end
+})
+
+local StatsInfoSection = StatsTab:CreateSection("Current Stats", true)
+
+local pointsLabel = StatsInfoSection:AddLabel({Text = "Points: " .. getPoints(), Bold = true})
+local levelLabel = StatsInfoSection:AddLabel({Text = "Level: " .. getLevel()})
+local beliLabel = StatsInfoSection:AddLabel({Text = "Beli: $" .. getBeli()})
+
+-- ============================================================================
+-- COMBAT TAB
+-- ============================================================================
+
+local CombatSection = CombatTab:CreateSection("Combat", true)
+
+CombatSection:AddToggle({
+    Label = "Infinite Energy",
+    Default = true,
+    Callback = function(v)
+        State.InfiniteEnergy = v
+        if v then hookEnergy() end
+    end
+})
+
+CombatSection:AddToggle({
+    Label = "No Clip",
+    Default = false,
+    Callback = function(v)
+        State.NoClip = v
+        if v then startNoClip() else stopNoClip() end
+    end
+})
+
+local KillAuraSection = CombatTab:CreateSection("Kill Aura", true)
+
+KillAuraSection:AddToggle({
+    Label = "Mob Kill Aura",
+    Default = true,
+    Callback = function(v)
+        State.KillAura = v
+    end
+})
+
+KillAuraSection:AddSlider({
+    Label = "Kill Aura Range",
+    Min = 25,
+    Max = 150,
+    Default = 50,
+    Callback = function(v)
+        State.KillAuraRange = v
+    end
+})
+
+-- ============================================================================
+-- TELEPORT TAB
+-- ============================================================================
+
+local IslandSection = TeleportTab:CreateSection("Sea 1 Islands", true)
 
 for _, island in ipairs(Sea1Islands) do
     IslandSection:AddButton({
@@ -1490,56 +1936,228 @@ for _, island in ipairs(Sea1Islands) do
     })
 end
 
--- === SETTINGS TAB ===
-local StatSection = SettingsTab:CreateSection("Auto Stats", true)
+local SeaTPSection = TeleportTab:CreateSection("Sea Teleports", true)
 
-StatSection:AddToggle({
-    Label = "Auto Stats",
-    Default = false,
-    Callback = function(v)
-        State.AutoStats = v
+SeaTPSection:AddButton({
+    Label = "Teleport to Sea 1",
+    Style = "primary",
+    Callback = function()
+        TeleportService:Teleport(2753915549, LocalPlayer)
     end
 })
 
--- Stat priority buttons
-local StatPrioritySection = SettingsTab:CreateSection("Stat Priority", false)
+SeaTPSection:AddButton({
+    Label = "Teleport to Sea 2",
+    Style = "primary",
+    Callback = function()
+        TeleportService:Teleport(4442272183, LocalPlayer)
+    end
+})
 
-for _, stat in ipairs({"Melee", "Defense", "Sword", "Gun", "Blox Fruit"}) do
-    StatPrioritySection:AddButton({
-        Label = stat,
-        Style = "secondary",
-        Callback = function()
-            Settings.StatPriority = stat
-            Window.Notify("Stats", "Priority: " .. stat, 2, "info")
-        end
-    })
-end
+SeaTPSection:AddButton({
+    Label = "Teleport to Sea 3",
+    Style = "primary",
+    Callback = function()
+        TeleportService:Teleport(7449423635, LocalPlayer)
+    end
+})
 
-local PerfSection = SettingsTab:CreateSection("Performance", true)
+local TPControlSection = TeleportTab:CreateSection("Controls", true)
 
-PerfSection:AddToggle({
-    Label = "FPS Boost",
+TPControlSection:AddButton({
+    Label = "Stop Tween",
+    Style = "danger",
+    Callback = function()
+        stopTween()
+        Window.Notify("Teleport", "Stopped movement", 2, "info")
+    end
+})
+
+-- ============================================================================
+-- ESP TAB
+-- ============================================================================
+
+local ESPOptionsSection = ESPTab:CreateSection("ESP Options", true)
+
+ESPOptionsSection:AddToggle({
+    Label = "Mob ESP",
     Default = false,
     Callback = function(v)
-        State.FPSBoost = v
+        State.MobESP = v
+        if v then startMobESP() else stopMobESP() end
+    end
+})
+
+ESPOptionsSection:AddToggle({
+    Label = "Fruit ESP",
+    Default = false,
+    Callback = function(v)
+        State.FruitESP = v
+        if v then startFruitESP() else stopFruitESP() end
+    end
+})
+
+ESPOptionsSection:AddToggle({
+    Label = "Chest ESP",
+    Default = false,
+    Callback = function(v)
+        State.ChestESP = v
+        if v then startChestESP() else stopChestESP() end
+    end
+})
+
+ESPOptionsSection:AddToggle({
+    Label = "Show Health",
+    Default = true,
+    Callback = function(v)
+        State.ESPHealth = v
+    end
+})
+
+ESPOptionsSection:AddToggle({
+    Label = "Show Distance",
+    Default = true,
+    Callback = function(v)
+        State.ESPDistance = v
+    end
+})
+
+ESPOptionsSection:AddButton({
+    Label = "Clear All ESP",
+    Style = "danger",
+    Callback = function()
+        clearAllESP()
+        Window.Notify("ESP", "Cleared all ESP", 2, "info")
+    end
+})
+
+-- ============================================================================
+-- PLAYER TAB
+-- ============================================================================
+
+local SpeedSection = PlayerTab:CreateSection("Speed & Jump", true)
+
+SpeedSection:AddSlider({
+    Label = "Walk Speed",
+    Min = 16,
+    Max = 200,
+    Default = 16,
+    Callback = function(v)
+        State.WalkSpeed = v
+        setWalkSpeed(v)
+    end
+})
+
+SpeedSection:AddSlider({
+    Label = "Jump Power",
+    Min = 50,
+    Max = 300,
+    Default = 50,
+    Callback = function(v)
+        State.JumpPower = v
+        setJumpPower(v)
+    end
+})
+
+SpeedSection:AddToggle({
+    Label = "Infinite Jump",
+    Default = false,
+    Callback = function(v)
+        State.InfiniteJump = v
+        if v then startInfiniteJump() else stopInfiniteJump() end
+    end
+})
+
+local FlySection = PlayerTab:CreateSection("Fly", true)
+
+FlySection:AddToggle({
+    Label = "Enable Fly",
+    Default = false,
+    Callback = function(v)
+        State.Fly = v
+        if v then startFly() else stopFly() end
+    end
+})
+
+FlySection:AddSlider({
+    Label = "Fly Speed",
+    Min = 50,
+    Max = 300,
+    Default = 100,
+    Callback = function(v)
+        State.FlySpeed = v
+    end
+})
+
+local OtherModsSection = PlayerTab:CreateSection("Other Mods", true)
+
+OtherModsSection:AddToggle({
+    Label = "Spin Bot",
+    Default = false,
+    Callback = function(v)
+        State.SpinBot = v
+        if v then startSpinBot() else stopSpinBot() end
+    end
+})
+
+-- ============================================================================
+-- MISC TAB
+-- ============================================================================
+
+local ChestFarmSection = MiscTab:CreateSection("Chest Farm", true)
+
+ChestFarmSection:AddLabel({Text = "Uses INSTANT teleport, resets after 3 chests", Bold = false})
+
+ChestFarmSection:AddToggle({
+    Label = "Auto Chest Farm",
+    Default = false,
+    Callback = function(v)
+        State.ChestFarm = v
         if v then
-            enableFPSBoost()
+            startChestFarm()
+            Window.Notify("Chest Farm", "Started! Instant TP mode.", 2, "success")
+        else
+            stopChestFarm()
         end
     end
 })
 
-local MiscSection = SettingsTab:CreateSection("Misc", true)
+local FruitSection = MiscTab:CreateSection("Fruit Sniper", true)
 
-MiscSection:AddButton({
+FruitSection:AddToggle({
+    Label = "Fruit Sniper",
+    Default = false,
+    Callback = function(v)
+        State.FruitSniper = v
+        if v then
+            startFruitSniper()
+            Window.Notify("Fruit Sniper", "Active! Scanning...", 2, "success")
+        else
+            stopFruitSniper()
+        end
+    end
+})
+
+FruitSection:AddButton({
+    Label = "Scan for Fruits",
+    Style = "secondary",
+    Callback = function()
+        local fruits = findFruits()
+        Window.Notify("Fruit Scan", "Found " .. #fruits .. " fruits", 2, "info")
+    end
+})
+
+local ServerSection = MiscTab:CreateSection("Server", true)
+
+ServerSection:AddButton({
     Label = "Server Hop",
     Style = "secondary",
     Callback = function()
-        Window.Notify("Server Hop", "Finding new server...", 2, "info")
-        TeleportService:Teleport(game.PlaceId, LocalPlayer)
+        serverHop()
     end
 })
 
-MiscSection:AddButton({
+ServerSection:AddButton({
     Label = "Rejoin",
     Style = "secondary",
     Callback = function()
@@ -1547,20 +2165,41 @@ MiscSection:AddButton({
     end
 })
 
--- Player info
-local InfoSection = SettingsTab:CreateSection("Player Info", true)
+local PerformanceSection = MiscTab:CreateSection("Performance", true)
 
-local levelLabel = InfoSection:AddLabel({Text = "Level: " .. getLevel(), Bold = true})
-local beliLabel = InfoSection:AddLabel({Text = "Beli: $" .. getBeli()})
-
-task.spawn(function()
-    while task.wait(1) do
-        pcall(function()
-            levelLabel:SetText("Level: " .. getLevel())
-            beliLabel:SetText("Beli: $" .. getBeli())
-        end)
+PerformanceSection:AddToggle({
+    Label = "Remove Fog",
+    Default = false,
+    Callback = function(v)
+        State.RemoveFog = v
+        if v then removeFog() end
     end
-end)
+})
+
+PerformanceSection:AddToggle({
+    Label = "FPS Boost",
+    Default = false,
+    Callback = function(v)
+        State.FPSBoost = v
+        if v then enableFPSBoost() end
+    end
+})
+
+PerformanceSection:AddToggle({
+    Label = "Anti-AFK",
+    Default = true,
+    Callback = function(v)
+        State.AntiAFK = v
+    end
+})
+
+-- Player Info Section
+local InfoSection = MiscTab:CreateSection("Player Info", true)
+
+InfoSection:AddLabel({Text = "Level: " .. getLevel(), Bold = true})
+InfoSection:AddLabel({Text = "Beli: $" .. getBeli()})
+InfoSection:AddLabel({Text = "Race: " .. getRace()})
+InfoSection:AddLabel({Text = "Fruit: " .. (getDevilFruit() ~= "" and getDevilFruit() or "None")})
 
 -- ============================================================================
 -- INITIALIZATION
@@ -1569,24 +2208,43 @@ end)
 -- Start Anti-AFK
 startAntiAFK()
 
--- Hook energy system
+-- Hook energy (ON by default)
 hookEnergy()
 
--- Notify
-Window.Notify("Blox Fruits v3.0", "Loaded! Level: " .. getLevel(), 3, "success")
+-- Initial notifications
+Window.Notify("FAMYY PRIVATE", "Blox Fruits Sea 1 v4.0 Loaded!", 3, "success")
+Window.Notify("Defaults ON", "Bring Mobs, Freeze, Kill Aura, Hitbox, Inf Energy", 4, "info")
 
+-- Update player info every second
+task.spawn(function()
+    while task.wait(1) do
+        pcall(function()
+            pointsLabel:SetText("Points: " .. getPoints())
+            levelLabel:SetText("Level: " .. getLevel())
+            beliLabel:SetText("Beli: $" .. getBeli())
+        end)
+    end
+end)
+
+-- Console output
 print("================================================================================")
-print("[FAMYY PRIVATE] Blox Fruits Sea 1 v3.0")
+print("[FAMYY PRIVATE] Blox Fruits Sea 1 Complete Script v4.0")
 print("================================================================================")
-print("Features:")
+print("DEFAULTS ENABLED:")
+print("  - Bring Mobs: ON")
+print("  - Freeze Mobs: ON") 
+print("  - Kill Aura: ON")
+print("  - Hitbox Expander: ON")
+print("  - Infinite Energy: ON")
+print("  - Auto Armament Haki: ON")
+print("================================================================================")
+print("FEATURES:")
 print("  - Remote-based attacks (no mouse interference)")
-print("  - Proper quest system via game remotes")
-print("  - Mob bringing + freezing")
-print("  - Tween movement (anti-detection)")
+print("  - Proper quest system")
+print("  - INSTANT teleport for chests")
+print("  - Tween movement for farming")
 print("  - Optimized ESP (no lag)")
-print("  - Hitbox expander")
-print("  - Kill aura, Auto Haki, Infinite Energy")
-print("  - Chest farm with anti-kick reset")
+print("  - All Sea 1 bosses, islands, items")
 print("================================================================================")
 
 return Library
