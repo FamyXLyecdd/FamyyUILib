@@ -7,7 +7,7 @@
     ╚═╝     ╚══════╝ ╚═════╝  ╚═════╝    ╚═╝       ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═══╝  ╚═╝  ╚═╝   ╚═╝   ╚══════╝
     
     FAMYY PRIVATE - Main Loader
-    Version: 9.2
+    Version: 10.0
     
     Single script to load everything. Auto-detects game and loads appropriate script.
     
