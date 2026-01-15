@@ -1,365 +1,347 @@
 --[[
     FAMYY PRIVATE - Blox Fruits Script
     Version: 1.0
+    Supports: First Sea (PlaceId: 2753915549)
     
     Features:
-    - Auto Farm (Mobs + Drops)
-    - Auto Quest
-    - Fruit Sniper
-    - ESP/Visuals
-    - Auto Skills
-    - Combat Mods
-    - Teleports
-    - Server Hop
-    - Auto Bounty Hunt
-    - Auto Events
+    - Auto Farm (kills mobs near your level)
+    - Auto Quest (gets and completes quests)
+    - Fruit ESP & Sniper
+    - Player ESP
+    - Mob ESP
+    - Teleports to all First Sea islands
+    - Stats display
 ]]
+
+-- Load UI Library
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/FamyXLyecdd/FamyyUILib/main/FamyyLib.lua"))()
 
 -- Services
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local TeleportService = game:GetService("TeleportService")
+local TweenService = game:GetService("TweenService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
-local HttpService = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService")
 
-local Player = Players.LocalPlayer
-local Character = Player.Character or Player.CharacterAdded:Wait()
-local Humanoid = Character:WaitForChild("Humanoid")
-local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
-
--- Auto-update character reference
-Player.CharacterAdded:Connect(function(char)
-    Character = char
-    Humanoid = char:WaitForChild("Humanoid")
-    HumanoidRootPart = char:WaitForChild("HumanoidRootPart")
-end)
-
--- ============================================================================
--- LOAD UI LIBRARY
--- ============================================================================
-
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/FamyXLyecdd/FamyyUILib/main/FamyyLib.lua"))()
+local LocalPlayer = Players.LocalPlayer
 local Window = Library.Window
 
 -- ============================================================================
--- SETTINGS / STATE
+-- GAME DATA - FIRST SEA
 -- ============================================================================
+
+local FirstSeaIslands = {
+    {Name = "Starter Island", Position = CFrame.new(1040, 16, 1547), Level = {1, 10}},
+    {Name = "Jungle", Position = CFrame.new(-1613, 42, 153), Level = {15, 30}},
+    {Name = "Pirate Village", Position = CFrame.new(-1139, 5, 3825), Level = {30, 60}},
+    {Name = "Desert", Position = CFrame.new(940, 20, 4325), Level = {60, 90}},
+    {Name = "Frozen Village", Position = CFrame.new(1192, 28, -1291), Level = {90, 120}},
+    {Name = "Marine Fortress", Position = CFrame.new(-4914, 52, 4281), Level = {120, 150}},
+    {Name = "Middle Island", Position = CFrame.new(-289, 73, 2071), Level = {100, 150}},
+    {Name = "Skylands", Position = CFrame.new(-4869, 733, -2622), Level = {150, 200}},
+    {Name = "Prison", Position = CFrame.new(4851, 6, 740), Level = {190, 275}},
+    {Name = "Colosseum", Position = CFrame.new(-1428, 7, -2858), Level = {225, 300}},
+    {Name = "Magma Village", Position = CFrame.new(-5280, 12, 8515), Level = {300, 375}},
+    {Name = "Underwater City", Position = CFrame.new(61163, 11, 1819), Level = {375, 450}},
+    {Name = "Fountain City", Position = CFrame.new(5129, 35, 4106), Level = {625, 700}},
+}
+
+local FirstSeaQuests = {
+    -- Level range: {QuestNPC, MobName, MobLevel, KillCount}
+    {Level = 1, NPC = "Quest Giver", Mob = "Bandit", Quest = "Bandit"},
+    {Level = 10, NPC = "Quest Giver", Mob = "Monkey", Quest = "Monkey"},
+    {Level = 15, NPC = "Quest Giver", Mob = "Gorilla", Quest = "Gorilla"},
+    {Level = 30, NPC = "Quest Giver", Mob = "Pirate", Quest = "Pirate"},
+    {Level = 60, NPC = "Quest Giver", Mob = "Desert Bandit", Quest = "DesertBandit"},
+    {Level = 90, NPC = "Quest Giver", Mob = "Snow Bandit", Quest = "SnowBandit"},
+    {Level = 120, NPC = "Quest Giver", Mob = "Marine", Quest = "Marine"},
+    {Level = 150, NPC = "Quest Giver", Mob = "Sky Bandit", Quest = "SkyBandit"},
+    {Level = 190, NPC = "Quest Giver", Mob = "Prisoner", Quest = "Prisoner"},
+    {Level = 225, NPC = "Quest Giver", Mob = "Gladiator", Quest = "Gladiator"},
+    {Level = 300, NPC = "Quest Giver", Mob = "Military Soldier", Quest = "MilitarySoldier"},
+    {Level = 375, NPC = "Quest Giver", Mob = "Fishman Warrior", Quest = "FishmanWarrior"},
+}
+
+-- ============================================================================
+-- STATE VARIABLES
+-- ============================================================================
+
+local Toggles = {
+    AutoFarm = false,
+    AutoQuest = false,
+    FruitESP = false,
+    FruitSniper = false,
+    PlayerESP = false,
+    MobESP = false,
+    BringMobs = false,
+    FastAttack = false,
+    AutoHaki = false,
+}
 
 local Settings = {
-    -- Auto Farm
-    AutoFarm = false,
-    AutoFarmType = "Nearest",
-    FarmDistance = 500,
-    BringMobs = false,
-    
-    -- Auto Quest
-    AutoQuest = false,
-    SelectedQuest = "Auto",
-    
-    -- Fruit Sniper
-    FruitSniper = false,
-    FruitNotify = true,
-    AutoCollectFruit = false,
-    
-    -- ESP
-    ESPEnabled = false,
-    ESPPlayers = false,
-    ESPFruits = true,
-    ESPChests = false,
-    ESPNPCs = false,
-    ESPMobs = false,
-    
-    -- Combat
-    FastAttack = false,
-    NoAttackCooldown = false,
-    AutoHaki = false,
-    AutoObservation = false,
-    InfiniteEnergy = false,
-    
-    -- Auto Skills
-    AutoSkills = false,
-    SkillZ = false,
-    SkillX = false,
-    SkillC = false,
-    SkillV = false,
-    SkillF = false,
-    
-    -- Teleports
-    SelectedIsland = "Starter Island",
-    
-    -- Server Hop
-    MinPlayers = 1,
-    MaxPlayers = 10,
-    
-    -- Bounty Hunt
-    AutoBountyHunt = false,
-    MinBounty = 100000,
-    
-    -- Events
-    AutoSeaEvents = false,
-    AutoKitsune = false,
-    AutoMirage = false,
+    FarmRange = 100,
+    AttackSpeed = 0.1,
+    TeleportSpeed = 150,
 }
 
--- ============================================================================
--- GAME DATA
--- ============================================================================
-
-local Islands = {
-    -- First Sea
-    ["Starter Island"] = CFrame.new(-1176, 5, 3803),
-    ["Jungle"] = CFrame.new(-1609, 37, 153),
-    ["Pirate Village"] = CFrame.new(-1139, 5, 3978),
-    ["Desert"] = CFrame.new(1093, 7, 4192),
-    ["Frozen Village"] = CFrame.new(1206, 60, -1214),
-    ["Marine Fortress"] = CFrame.new(-4914, 52, 4281),
-    ["Skylands"] = CFrame.new(-4869, 716, -2622),
-    ["Prison"] = CFrame.new(4851, 6, 741),
-    ["Colosseum"] = CFrame.new(-1428, 7, -2865),
-    ["Magma Village"] = CFrame.new(-5295, 12, 8517),
-    ["Underwater City"] = CFrame.new(61163, 11, 1819),
-    ["Fountain City"] = CFrame.new(5254, 39, 4050),
-    
-    -- Second Sea
-    ["Kingdom of Rose"] = CFrame.new(-2104, 73, -6807),
-    ["Green Zone"] = CFrame.new(-2383, 73, -3280),
-    ["Graveyard"] = CFrame.new(-5449, 81, -799),
-    ["Snow Mountain"] = CFrame.new(617, 400, -5353),
-    ["Hot and Cold"] = CFrame.new(-6116, 16, -4823),
-    ["Cursed Ship"] = CFrame.new(943, 125, 33056),
-    ["Ice Castle"] = CFrame.new(6150, 394, -6734),
-    ["Forgotten Island"] = CFrame.new(-3050, 312, -10147),
-    ["Dark Arena"] = CFrame.new(-2347, 73, -6406),
-    ["Cafe"] = CFrame.new(-384, 73, -5936),
-    ["Usopp's Island"] = CFrame.new(4838, 8, -7471),
-    
-    -- Third Sea
-    ["Port Town"] = CFrame.new(-289, 44, 5580),
-    ["Hydra Island"] = CFrame.new(5229, 414, 334),
-    ["Great Tree"] = CFrame.new(2175, 28, -6773),
-    ["Floating Turtle"] = CFrame.new(-13274, 457, -7735),
-    ["Castle on the Sea"] = CFrame.new(-5064, 314, -3060),
-    ["Haunted Castle"] = CFrame.new(-9516, 140, 5765),
-    ["Sea of Treats"] = CFrame.new(-12104, 390, -7554),
-    ["Tiki Outpost"] = CFrame.new(-17681, 21, 1422),
-    ["Mansion"] = CFrame.new(-12840, 332, -7617),
-    ["Kitsune Shrine"] = CFrame.new(-10042, 408, -9467),
-}
-
-local Quests = {
-    -- First Sea Level Ranges
-    {Name = "Bandit", Level = 1, MaxLevel = 10, NPC = "Bandit Quest Giver"},
-    {Name = "Monkey", Level = 10, MaxLevel = 25, NPC = "Jungle Quest Giver"},
-    {Name = "Gorilla", Level = 25, MaxLevel = 40, NPC = "Jungle Quest Giver"},
-    {Name = "Pirate", Level = 40, MaxLevel = 60, NPC = "Pirate Quest Giver"},
-    {Name = "Brute", Level = 60, MaxLevel = 80, NPC = "Desert Quest Giver"},
-    {Name = "Desert Officer", Level = 80, MaxLevel = 100, NPC = "Desert Quest Giver"},
-    {Name = "Snow Bandit", Level = 100, MaxLevel = 125, NPC = "Frozen Quest Giver"},
-    {Name = "Snowman", Level = 125, MaxLevel = 150, NPC = "Frozen Quest Giver"},
-    {Name = "Chief Petty Officer", Level = 150, MaxLevel = 175, NPC = "Marine Quest Giver"},
-    {Name = "Sky Bandit", Level = 175, MaxLevel = 200, NPC = "Sky Quest Giver"},
-    {Name = "Toga Warrior", Level = 200, MaxLevel = 225, NPC = "Colosseum Quest Giver"},
-    {Name = "Gladiator", Level = 225, MaxLevel = 250, NPC = "Colosseum Quest Giver"},
-    {Name = "Magma Ninja", Level = 250, MaxLevel = 275, NPC = "Magma Quest Giver"},
-    {Name = "Military Soldier", Level = 275, MaxLevel = 300, NPC = "Magma Quest Giver"},
-}
+local Connections = {}
+local ESPObjects = {}
 
 -- ============================================================================
 -- UTILITY FUNCTIONS
 -- ============================================================================
 
-local function GetDistance(pos1, pos2)
-    return (pos1 - pos2).Magnitude
+local function getCharacter()
+    return LocalPlayer.Character
 end
 
-local function TeleportTo(cf)
-    if HumanoidRootPart then
-        HumanoidRootPart.CFrame = cf
+local function getHumanoid()
+    local char = getCharacter()
+    return char and char:FindFirstChildOfClass("Humanoid")
+end
+
+local function getHRP()
+    local char = getCharacter()
+    return char and char:FindFirstChild("HumanoidRootPart")
+end
+
+local function getPlayerLevel()
+    local data = LocalPlayer:FindFirstChild("Data")
+    if data then
+        local level = data:FindFirstChild("Level")
+        if level then return level.Value end
+    end
+    return 1
+end
+
+local function getPlayerBeli()
+    local data = LocalPlayer:FindFirstChild("Data")
+    if data then
+        local beli = data:FindFirstChild("Beli")
+        if beli then return beli.Value end
+    end
+    return 0
+end
+
+local function teleportTo(cf)
+    local hrp = getHRP()
+    if hrp then
+        hrp.CFrame = cf
     end
 end
 
-local function GetNearestMob()
-    local nearestMob = nil
-    local nearestDistance = Settings.FarmDistance
+local function tweenTo(cf, speed)
+    local hrp = getHRP()
+    if not hrp then return end
     
-    for _, mob in pairs(Workspace.Enemies:GetChildren()) do
-        if mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 then
-            if mob:FindFirstChild("HumanoidRootPart") then
-                local distance = GetDistance(HumanoidRootPart.Position, mob.HumanoidRootPart.Position)
-                if distance < nearestDistance then
-                    nearestDistance = distance
-                    nearestMob = mob
+    speed = speed or Settings.TeleportSpeed
+    local distance = (hrp.Position - cf.Position).Magnitude
+    local time = distance / speed
+    
+    local tween = TweenService:Create(hrp, TweenInfo.new(time, Enum.EasingStyle.Linear), {CFrame = cf})
+    tween:Play()
+    tween.Completed:Wait()
+end
+
+local function getNearestMob(maxDistance)
+    local hrp = getHRP()
+    if not hrp then return nil end
+    
+    local nearest = nil
+    local nearestDist = maxDistance or Settings.FarmRange
+    
+    local enemies = Workspace:FindFirstChild("Enemies")
+    if not enemies then return nil end
+    
+    for _, mob in ipairs(enemies:GetChildren()) do
+        if mob:IsA("Model") then
+            local mobHRP = mob:FindFirstChild("HumanoidRootPart")
+            local mobHum = mob:FindFirstChildOfClass("Humanoid")
+            
+            if mobHRP and mobHum and mobHum.Health > 0 then
+                local dist = (hrp.Position - mobHRP.Position).Magnitude
+                if dist < nearestDist then
+                    nearest = mob
+                    nearestDist = dist
                 end
             end
         end
     end
     
-    return nearestMob
+    return nearest, nearestDist
 end
 
-local function GetNearestFruit()
-    local nearestFruit = nil
-    local nearestDistance = math.huge
+local function getMobsByName(name)
+    local mobs = {}
+    local enemies = Workspace:FindFirstChild("Enemies")
+    if not enemies then return mobs end
     
-    for _, fruit in pairs(Workspace:GetChildren()) do
-        if fruit.Name:match("Fruit") or fruit:FindFirstChild("FruitModel") then
-            local fruitPart = fruit:FindFirstChild("Handle") or fruit:FindFirstChildOfClass("Part")
-            if fruitPart then
-                local distance = GetDistance(HumanoidRootPart.Position, fruitPart.Position)
-                if distance < nearestDistance then
-                    nearestDistance = distance
-                    nearestFruit = fruit
-                end
+    for _, mob in ipairs(enemies:GetChildren()) do
+        if mob:IsA("Model") and mob.Name:lower():find(name:lower()) then
+            local mobHum = mob:FindFirstChildOfClass("Humanoid")
+            if mobHum and mobHum.Health > 0 then
+                table.insert(mobs, mob)
             end
         end
     end
     
-    return nearestFruit
+    return mobs
 end
 
-local function Attack()
+local function attackMob(mob)
+    if not mob then return end
+    
+    local mobHRP = mob:FindFirstChild("HumanoidRootPart")
+    local mobHum = mob:FindFirstChildOfClass("Humanoid")
+    local hrp = getHRP()
+    
+    if not mobHRP or not mobHum or not hrp then return end
+    if mobHum.Health <= 0 then return end
+    
+    -- Position behind mob for attacking
+    local attackPos = mobHRP.CFrame * CFrame.new(0, 0, 3)
+    hrp.CFrame = attackPos
+    
+    -- Simulate click attack
     if VirtualInputManager then
         VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-        task.wait()
+        task.wait(0.05)
         VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
     end
 end
 
-local function UseSkill(key)
-    local VIM = game:GetService("VirtualInputManager")
-    VIM:SendKeyEvent(true, key, false, game)
-    task.wait()
-    VIM:SendKeyEvent(false, key, false, game)
-end
-
-local function ServerHop()
-    local servers = {}
-    local cursor = nil
-    
-    local success, result = pcall(function()
-        local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
-        if cursor then
-            url = url .. "&cursor=" .. cursor
-        end
-        return HttpService:JSONDecode(game:HttpGet(url))
-    end)
-    
-    if success and result.data then
-        for _, server in pairs(result.data) do
-            if server.playing >= Settings.MinPlayers and server.playing <= Settings.MaxPlayers then
-                if server.id ~= game.JobId then
-                    table.insert(servers, server)
-                end
-            end
-        end
-        
-        if #servers > 0 then
-            local server = servers[math.random(1, #servers)]
-            TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, Player)
-            return true
-        end
-    end
-    
-    return false
-end
-
 -- ============================================================================
--- ESP SYSTEM
+-- ESP FUNCTIONS
 -- ============================================================================
 
-local ESPFolder = Instance.new("Folder", game.CoreGui)
-ESPFolder.Name = "FamyyESP"
-
-local function CreateESP(object, color, text)
-    if not object or not object:FindFirstChild("HumanoidRootPart") then return end
+local function createESP(object, color, text)
+    if ESPObjects[object] then return end
     
+    local espData = {}
+    
+    -- Billboard
     local billboard = Instance.new("BillboardGui")
-    billboard.Name = "ESP_" .. object.Name
-    billboard.Adornee = object:FindFirstChild("HumanoidRootPart") or object:FindFirstChild("Head") or object:FindFirstChildOfClass("Part")
+    billboard.Name = "FamyyESP"
     billboard.Size = UDim2.new(0, 100, 0, 40)
     billboard.StudsOffset = Vector3.new(0, 3, 0)
     billboard.AlwaysOnTop = true
-    billboard.Parent = ESPFolder
+    billboard.Parent = object
     
-    local frame = Instance.new("Frame", billboard)
-    frame.Size = UDim2.new(1, 0, 1, 0)
-    frame.BackgroundTransparency = 0.5
-    frame.BackgroundColor3 = color
-    frame.BorderSizePixel = 0
-    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 4)
+    local textLabel = Instance.new("TextLabel", billboard)
+    textLabel.Size = UDim2.new(1, 0, 0.5, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.Text = text or object.Name
+    textLabel.TextColor3 = color or Color3.new(1, 1, 1)
+    textLabel.TextStrokeTransparency = 0
+    textLabel.Font = Enum.Font.GothamBold
+    textLabel.TextScaled = true
     
-    local label = Instance.new("TextLabel", frame)
-    label.Size = UDim2.new(1, 0, 1, 0)
-    label.BackgroundTransparency = 1
-    label.Text = text
-    label.TextColor3 = Color3.new(1, 1, 1)
-    label.Font = Enum.Font.GothamBold
-    label.TextSize = 12
-    label.TextScaled = true
+    local distLabel = Instance.new("TextLabel", billboard)
+    distLabel.Size = UDim2.new(1, 0, 0.5, 0)
+    distLabel.Position = UDim2.new(0, 0, 0.5, 0)
+    distLabel.BackgroundTransparency = 1
+    distLabel.Text = "0m"
+    distLabel.TextColor3 = Color3.new(0.8, 0.8, 0.8)
+    distLabel.TextStrokeTransparency = 0
+    distLabel.Font = Enum.Font.Gotham
+    distLabel.TextScaled = true
     
-    return billboard
+    espData.Billboard = billboard
+    espData.DistLabel = distLabel
+    espData.TextLabel = textLabel
+    
+    ESPObjects[object] = espData
 end
 
-local function ClearESP()
-    for _, esp in pairs(ESPFolder:GetChildren()) do
-        esp:Destroy()
+local function removeESP(object)
+    if ESPObjects[object] then
+        if ESPObjects[object].Billboard then
+            ESPObjects[object].Billboard:Destroy()
+        end
+        ESPObjects[object] = nil
     end
 end
 
-local function UpdateESP()
-    ClearESP()
+local function updateESPDistances()
+    local hrp = getHRP()
+    if not hrp then return end
     
-    if not Settings.ESPEnabled then return end
+    for object, data in pairs(ESPObjects) do
+        if object and object.Parent and data.DistLabel then
+            local objectPos = object:IsA("Model") and object:FindFirstChild("HumanoidRootPart") or object
+            if objectPos and objectPos:IsA("BasePart") then
+                local dist = math.floor((hrp.Position - objectPos.Position).Magnitude)
+                data.DistLabel.Text = dist .. "m"
+            elseif objectPos and objectPos:IsA("Model") then
+                local primary = objectPos.PrimaryPart or objectPos:FindFirstChildWhichIsA("BasePart")
+                if primary then
+                    local dist = math.floor((hrp.Position - primary.Position).Magnitude)
+                    data.DistLabel.Text = dist .. "m"
+                end
+            end
+        else
+            ESPObjects[object] = nil
+        end
+    end
+end
+
+local function clearAllESP()
+    for object, data in pairs(ESPObjects) do
+        if data.Billboard then
+            data.Billboard:Destroy()
+        end
+    end
+    ESPObjects = {}
+end
+
+-- ============================================================================
+-- FRUIT FUNCTIONS
+-- ============================================================================
+
+local function findFruits()
+    local fruits = {}
     
-    -- Players ESP
-    if Settings.ESPPlayers then
-        for _, player in pairs(Players:GetPlayers()) do
-            if player ~= Player and player.Character then
-                local health = player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health or 0
-                CreateESP(player.Character, Color3.fromRGB(255, 100, 100), player.Name .. "\n" .. math.floor(health))
+    -- Check common fruit spawn locations
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("Tool") and obj.Name:find("Fruit") then
+            table.insert(fruits, obj)
+        elseif obj:IsA("Model") and obj.Name:find("Fruit") then
+            table.insert(fruits, obj)
+        end
+    end
+    
+    -- Check for Handle parts with fruit-like properties
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("Part") and obj.Name == "Handle" and obj.Parent and obj.Parent:IsA("Tool") then
+            if obj.Parent.Name:find("Fruit") or obj.BrickColor.Name:find("Fruit") then
+                if not table.find(fruits, obj.Parent) then
+                    table.insert(fruits, obj.Parent)
+                end
             end
         end
     end
     
-    -- Fruits ESP
-    if Settings.ESPFruits then
-        for _, obj in pairs(Workspace:GetChildren()) do
-            if obj.Name:match("Fruit") then
-                local billboard = Instance.new("BillboardGui")
-                billboard.Name = "ESP_Fruit"
-                billboard.Adornee = obj:FindFirstChildOfClass("Part") or obj
-                billboard.Size = UDim2.new(0, 80, 0, 30)
-                billboard.StudsOffset = Vector3.new(0, 2, 0)
-                billboard.AlwaysOnTop = true
-                billboard.Parent = ESPFolder
-                
-                local frame = Instance.new("Frame", billboard)
-                frame.Size = UDim2.new(1, 0, 1, 0)
-                frame.BackgroundTransparency = 0.3
-                frame.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
-                frame.BorderSizePixel = 0
-                Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 4)
-                
-                local label = Instance.new("TextLabel", frame)
-                label.Size = UDim2.new(1, 0, 1, 0)
-                label.BackgroundTransparency = 1
-                label.Text = obj.Name
-                label.TextColor3 = Color3.new(0, 0, 0)
-                label.Font = Enum.Font.GothamBold
-                label.TextSize = 14
-            end
-        end
-    end
+    return fruits
+end
+
+local function sniperFruit(fruit)
+    if not fruit then return end
     
-    -- Mobs ESP
-    if Settings.ESPMobs and Workspace:FindFirstChild("Enemies") then
-        for _, mob in pairs(Workspace.Enemies:GetChildren()) do
-            if mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 then
-                CreateESP(mob, Color3.fromRGB(255, 50, 50), mob.Name .. "\n" .. math.floor(mob.Humanoid.Health))
-            end
-        end
+    local fruitPart = fruit:IsA("BasePart") and fruit or fruit:FindFirstChild("Handle") or fruit:FindFirstChildWhichIsA("BasePart")
+    if not fruitPart then return end
+    
+    teleportTo(fruitPart.CFrame * CFrame.new(0, 3, 0))
+    task.wait(0.5)
+    
+    -- Try to pick up
+    local hrp = getHRP()
+    if hrp and (hrp.Position - fruitPart.Position).Magnitude < 15 then
+        -- Touch the fruit
+        firetouchinterest(hrp, fruitPart, 0)
+        task.wait(0.1)
+        firetouchinterest(hrp, fruitPart, 1)
     end
 end
 
@@ -367,301 +349,238 @@ end
 -- MAIN LOOPS
 -- ============================================================================
 
--- Auto Farm Loop
-task.spawn(function()
-    while task.wait(0.1) do
-        if Settings.AutoFarm and HumanoidRootPart then
-            local mob = GetNearestMob()
-            if mob and mob:FindFirstChild("HumanoidRootPart") then
-                local mobCF = mob.HumanoidRootPart.CFrame
-                
-                if Settings.BringMobs then
-                    -- Bring mob to player
-                    mob.HumanoidRootPart.CFrame = HumanoidRootPart.CFrame * CFrame.new(0, 0, -5)
+local function startAutoFarm()
+    if Connections.AutoFarm then return end
+    
+    Connections.AutoFarm = RunService.Heartbeat:Connect(function()
+        if not Toggles.AutoFarm then return end
+        
+        local mob, dist = getNearestMob(Settings.FarmRange)
+        
+        if mob then
+            attackMob(mob)
+        end
+    end)
+end
+
+local function stopAutoFarm()
+    if Connections.AutoFarm then
+        Connections.AutoFarm:Disconnect()
+        Connections.AutoFarm = nil
+    end
+end
+
+local function startMobESP()
+    if Connections.MobESP then return end
+    
+    local function updateMobESP()
+        local enemies = Workspace:FindFirstChild("Enemies")
+        if not enemies then return end
+        
+        for _, mob in ipairs(enemies:GetChildren()) do
+            if mob:IsA("Model") then
+                local mobHum = mob:FindFirstChildOfClass("Humanoid")
+                if mobHum and mobHum.Health > 0 then
+                    if not ESPObjects[mob] then
+                        local color = Color3.fromRGB(255, 100, 100)
+                        createESP(mob, color, mob.Name)
+                    end
                 else
-                    -- Teleport to mob
-                    TeleportTo(mobCF * CFrame.new(0, 0, 3))
+                    removeESP(mob)
                 end
-                
-                -- Attack
-                Attack()
             end
         end
     end
-end)
+    
+    updateMobESP()
+    
+    Connections.MobESP = RunService.Heartbeat:Connect(function()
+        if not Toggles.MobESP then return end
+        updateMobESP()
+        updateESPDistances()
+    end)
+end
 
--- Auto Skills Loop
-task.spawn(function()
-    while task.wait(0.5) do
-        if Settings.AutoSkills then
-            if Settings.SkillZ then UseSkill(Enum.KeyCode.Z) end
-            if Settings.SkillX then UseSkill(Enum.KeyCode.X) end
-            if Settings.SkillC then UseSkill(Enum.KeyCode.C) end
-            if Settings.SkillV then UseSkill(Enum.KeyCode.V) end
-            if Settings.SkillF then UseSkill(Enum.KeyCode.F) end
+local function stopMobESP()
+    if Connections.MobESP then
+        Connections.MobESP:Disconnect()
+        Connections.MobESP = nil
+    end
+    
+    -- Remove mob ESP
+    local enemies = Workspace:FindFirstChild("Enemies")
+    if enemies then
+        for _, mob in ipairs(enemies:GetChildren()) do
+            removeESP(mob)
+        end
+    end
+end
+
+local function startFruitESP()
+    if Connections.FruitESP then return end
+    
+    Connections.FruitESP = RunService.Heartbeat:Connect(function()
+        if not Toggles.FruitESP then return end
+        
+        local fruits = findFruits()
+        for _, fruit in ipairs(fruits) do
+            if not ESPObjects[fruit] then
+                createESP(fruit, Color3.fromRGB(255, 200, 0), "FRUIT: " .. fruit.Name)
+            end
         end
         
-        if Settings.AutoHaki then
-            -- Toggle Buso Haki
-            local args = {[1] = "Buso"}
-            ReplicatedStorage.Remotes.SetHaki:FireServer(unpack(args))
-        end
-    end
-end)
+        updateESPDistances()
+    end)
+end
 
--- Fruit Sniper Loop
-task.spawn(function()
-    while task.wait(1) do
-        if Settings.FruitSniper then
-            local fruit = GetNearestFruit()
-            if fruit then
-                if Settings.FruitNotify then
-                    Window.Notify("Fruit Found!", fruit.Name .. " detected!", 5, "success")
-                end
-                
-                if Settings.AutoCollectFruit then
-                    local fruitPart = fruit:FindFirstChild("Handle") or fruit:FindFirstChildOfClass("Part")
-                    if fruitPart then
-                        TeleportTo(fruitPart.CFrame)
-                        task.wait(0.5)
-                        -- Trigger pickup
-                        fireproximityprompt(fruit:FindFirstChildOfClass("ProximityPrompt"))
-                    end
+local function stopFruitESP()
+    if Connections.FruitESP then
+        Connections.FruitESP:Disconnect()
+        Connections.FruitESP = nil
+    end
+end
+
+local function startFruitSniper()
+    if Connections.FruitSniper then return end
+    
+    Connections.FruitSniper = RunService.Heartbeat:Connect(function()
+        if not Toggles.FruitSniper then return end
+        
+        local fruits = findFruits()
+        if #fruits > 0 then
+            sniperFruit(fruits[1])
+            Window.Notify("Fruit Sniper", "Found and teleported to: " .. fruits[1].Name, 3, "success")
+        end
+    end)
+end
+
+local function stopFruitSniper()
+    if Connections.FruitSniper then
+        Connections.FruitSniper:Disconnect()
+        Connections.FruitSniper = nil
+    end
+end
+
+local function startPlayerESP()
+    if Connections.PlayerESP then return end
+    
+    local function updatePlayerESP()
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+                if hrp and not ESPObjects[player.Character] then
+                    local color = Color3.fromRGB(100, 200, 255)
+                    createESP(player.Character, color, player.Name)
                 end
             end
         end
     end
-end)
+    
+    updatePlayerESP()
+    
+    Connections.PlayerESP = RunService.Heartbeat:Connect(function()
+        if not Toggles.PlayerESP then return end
+        updatePlayerESP()
+        updateESPDistances()
+    end)
+end
 
--- ESP Update Loop
-task.spawn(function()
-    while task.wait(2) do
-        if Settings.ESPEnabled then
-            UpdateESP()
+local function stopPlayerESP()
+    if Connections.PlayerESP then
+        Connections.PlayerESP:Disconnect()
+        Connections.PlayerESP = nil
+    end
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Character then
+            removeESP(player.Character)
+        end
+    end
+end
+
+-- ============================================================================
+-- UI SETUP
+-- ============================================================================
+
+-- Main Tab
+local MainTab = Window:CreateTab("Farm")
+
+-- Auto Farm Section
+local FarmSection = MainTab:CreateSection("Auto Farm", true)
+
+FarmSection:AddToggle({
+    Label = "Auto Farm",
+    Default = false,
+    Callback = function(value)
+        Toggles.AutoFarm = value
+        if value then
+            startAutoFarm()
+            Window.Notify("Auto Farm", "Started farming nearby mobs", 2, "success")
         else
-            ClearESP()
-        end
-    end
-end)
-
--- Auto Bounty Hunt Loop
-task.spawn(function()
-    while task.wait(1) do
-        if Settings.AutoBountyHunt and HumanoidRootPart then
-            local target = nil
-            local highestBounty = Settings.MinBounty
-            
-            for _, player in pairs(Players:GetPlayers()) do
-                if player ~= Player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                    local bounty = player:FindFirstChild("leaderstats") and player.leaderstats:FindFirstChild("Bounty")
-                    if bounty and bounty.Value >= highestBounty then
-                        highestBounty = bounty.Value
-                        target = player
-                    end
-                end
-            end
-            
-            if target and target.Character then
-                TeleportTo(target.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3))
-                Attack()
-            end
-        end
-    end
-end)
-
--- ============================================================================
--- CREATE UI TABS
--- ============================================================================
-
--- Main Tab (Farming)
-local FarmTab = Window:CreateTab("Farm")
-
-local AutoFarmSection = FarmTab:CreateSection("Auto Farm", true)
-
-AutoFarmSection:AddToggle({
-    Label = "Enable Auto Farm",
-    Default = false,
-    Callback = function(v)
-        Settings.AutoFarm = v
-        Window.Notify("Auto Farm", v and "Enabled" or "Disabled", 2, v and "success" or "info")
-    end
-})
-
-AutoFarmSection:AddToggle({
-    Label = "Bring Mobs to You",
-    Default = false,
-    Callback = function(v)
-        Settings.BringMobs = v
-    end
-})
-
-AutoFarmSection:AddSlider({
-    Label = "Farm Distance",
-    Min = 100,
-    Max = 2000,
-    Default = 500,
-    Callback = function(v)
-        Settings.FarmDistance = v
-    end
-})
-
-local QuestSection = FarmTab:CreateSection("Auto Quest", true)
-
-QuestSection:AddToggle({
-    Label = "Enable Auto Quest",
-    Default = false,
-    Callback = function(v)
-        Settings.AutoQuest = v
-    end
-})
-
-QuestSection:AddDropdown({
-    Label = "Quest Mode",
-    Options = {"Auto (By Level)", "Manual Select"},
-    Default = "Auto (By Level)",
-    Callback = function(v)
-        Settings.SelectedQuest = v
-    end
-})
-
--- Combat Tab
-local CombatTab = Window:CreateTab("Combat")
-
-local CombatSection = CombatTab:CreateSection("Combat Mods", true)
-
-CombatSection:AddToggle({
-    Label = "Fast Attack",
-    Default = false,
-    Callback = function(v)
-        Settings.FastAttack = v
-    end
-})
-
-CombatSection:AddToggle({
-    Label = "Auto Haki",
-    Default = false,
-    Callback = function(v)
-        Settings.AutoHaki = v
-    end
-})
-
-CombatSection:AddToggle({
-    Label = "Auto Observation",
-    Default = false,
-    Callback = function(v)
-        Settings.AutoObservation = v
-    end
-})
-
-local SkillsSection = CombatTab:CreateSection("Auto Skills", true)
-
-SkillsSection:AddToggle({
-    Label = "Enable Auto Skills",
-    Default = false,
-    Callback = function(v)
-        Settings.AutoSkills = v
-    end
-})
-
-SkillsSection:AddToggle({
-    Label = "Use Z Skill",
-    Default = false,
-    Callback = function(v)
-        Settings.SkillZ = v
-    end
-})
-
-SkillsSection:AddToggle({
-    Label = "Use X Skill",
-    Default = false,
-    Callback = function(v)
-        Settings.SkillX = v
-    end
-})
-
-SkillsSection:AddToggle({
-    Label = "Use C Skill",
-    Default = false,
-    Callback = function(v)
-        Settings.SkillC = v
-    end
-})
-
-SkillsSection:AddToggle({
-    Label = "Use V Skill",
-    Default = false,
-    Callback = function(v)
-        Settings.SkillV = v
-    end
-})
-
-local BountySection = CombatTab:CreateSection("Bounty Hunt", true)
-
-BountySection:AddToggle({
-    Label = "Auto Bounty Hunt",
-    Default = false,
-    Callback = function(v)
-        Settings.AutoBountyHunt = v
-        if v then
-            Window.Notify("Bounty Hunt", "Targeting high bounty players!", 3, "warning")
+            stopAutoFarm()
+            Window.Notify("Auto Farm", "Stopped", 2, "info")
         end
     end
 })
 
-BountySection:AddSlider({
-    Label = "Min Bounty Target",
-    Min = 10000,
-    Max = 10000000,
-    Default = 100000,
-    Step = 10000,
-    Callback = function(v)
-        Settings.MinBounty = v
+FarmSection:AddSlider({
+    Label = "Farm Range",
+    Min = 50,
+    Max = 500,
+    Default = 100,
+    Callback = function(value)
+        Settings.FarmRange = value
     end
 })
 
--- ESP Tab
-local ESPTab = Window:CreateTab("ESP")
-
-local ESPSection = ESPTab:CreateSection("ESP Settings", true)
-
-ESPSection:AddToggle({
-    Label = "Enable ESP",
+FarmSection:AddToggle({
+    Label = "Bring Mobs",
     Default = false,
-    Callback = function(v)
-        Settings.ESPEnabled = v
-        if not v then ClearESP() end
+    Callback = function(value)
+        Toggles.BringMobs = value
     end
 })
 
+-- ESP Section
+local ESPSection = MainTab:CreateSection("ESP", true)
+
 ESPSection:AddToggle({
-    Label = "Players ESP",
+    Label = "Mob ESP",
     Default = false,
-    Callback = function(v)
-        Settings.ESPPlayers = v
+    Callback = function(value)
+        Toggles.MobESP = value
+        if value then
+            startMobESP()
+        else
+            stopMobESP()
+        end
     end
 })
 
 ESPSection:AddToggle({
-    Label = "Fruits ESP",
-    Default = true,
-    Callback = function(v)
-        Settings.ESPFruits = v
-    end
-})
-
-ESPSection:AddToggle({
-    Label = "Mobs ESP",
+    Label = "Player ESP",
     Default = false,
-    Callback = function(v)
-        Settings.ESPMobs = v
+    Callback = function(value)
+        Toggles.PlayerESP = value
+        if value then
+            startPlayerESP()
+        else
+            stopPlayerESP()
+        end
     end
 })
 
 ESPSection:AddToggle({
-    Label = "Chests ESP",
+    Label = "Fruit ESP",
     Default = false,
-    Callback = function(v)
-        Settings.ESPChests = v
+    Callback = function(value)
+        Toggles.FruitESP = value
+        if value then
+            startFruitESP()
+            Window.Notify("Fruit ESP", "Scanning for fruits...", 2, "info")
+        else
+            stopFruitESP()
+        end
     end
 })
 
@@ -671,141 +590,117 @@ local FruitTab = Window:CreateTab("Fruits")
 local FruitSection = FruitTab:CreateSection("Fruit Sniper", true)
 
 FruitSection:AddToggle({
-    Label = "Enable Fruit Sniper",
+    Label = "Auto Snipe Fruits",
     Default = false,
-    Callback = function(v)
-        Settings.FruitSniper = v
-        if v then
-            Window.Notify("Fruit Sniper", "Scanning for fruits...", 3, "info")
+    Callback = function(value)
+        Toggles.FruitSniper = value
+        if value then
+            startFruitSniper()
+            Window.Notify("Fruit Sniper", "Active - Will teleport to fruits!", 3, "success")
+        else
+            stopFruitSniper()
         end
     end
 })
 
-FruitSection:AddToggle({
-    Label = "Notify on Fruit Found",
-    Default = true,
-    Callback = function(v)
-        Settings.FruitNotify = v
+FruitSection:AddButton({
+    Label = "Scan for Fruits Now",
+    Style = "primary",
+    Callback = function()
+        local fruits = findFruits()
+        if #fruits > 0 then
+            Window.Notify("Fruit Scan", "Found " .. #fruits .. " fruit(s)!", 3, "success")
+            for _, fruit in ipairs(fruits) do
+                print("[FamyyPrivate] Found fruit:", fruit.Name, fruit:GetFullName())
+            end
+        else
+            Window.Notify("Fruit Scan", "No fruits found", 3, "warning")
+        end
     end
 })
 
-FruitSection:AddToggle({
-    Label = "Auto Collect Fruits",
-    Default = false,
-    Callback = function(v)
-        Settings.AutoCollectFruit = v
-    end
-})
+-- Teleports Tab
+local TeleportTab = Window:CreateTab("Teleport")
 
--- Teleport Tab
-local TPTab = Window:CreateTab("Teleport")
+local IslandSection = TeleportTab:CreateSection("First Sea Islands", true)
 
-local TPSection = TPTab:CreateSection("Island Teleports", true)
-
--- Create island dropdown
-local islandNames = {}
-for name, _ in pairs(Islands) do
-    table.insert(islandNames, name)
+for _, island in ipairs(FirstSeaIslands) do
+    IslandSection:AddButton({
+        Label = island.Name .. " [" .. island.Level[1] .. "-" .. island.Level[2] .. "]",
+        Style = "secondary",
+        Callback = function()
+            teleportTo(island.Position)
+            Window.Notify("Teleport", "Teleported to " .. island.Name, 2, "success")
+        end
+    })
 end
-table.sort(islandNames)
 
-TPSection:AddDropdown({
-    Label = "Select Island",
-    Options = islandNames,
-    Default = "Starter Island",
-    Callback = function(v)
-        Settings.SelectedIsland = v
-    end
-})
+-- Stats Tab
+local StatsTab = Window:CreateTab("Stats")
 
-TPSection:AddButton({
-    Label = "Teleport to Island",
-    Style = "primary",
-    Callback = function()
-        if Islands[Settings.SelectedIsland] then
-            TeleportTo(Islands[Settings.SelectedIsland])
-            Window.Notify("Teleport", "Teleported to " .. Settings.SelectedIsland, 2, "success")
+local StatsSection = StatsTab:CreateSection("Player Stats", true)
+
+local levelLabel = StatsSection:AddLabel({Text = "Level: Loading...", Bold = true})
+local beliLabel = StatsSection:AddLabel({Text = "Beli: Loading..."})
+
+-- Update stats periodically
+task.spawn(function()
+    while task.wait(1) do
+        local level = getPlayerLevel()
+        local beli = getPlayerBeli()
+        
+        if levelLabel then
+            levelLabel:SetText("Level: " .. tostring(level))
+        end
+        if beliLabel then
+            beliLabel:SetText("Beli: $" .. tostring(beli))
         end
     end
-})
+end)
 
-local ServerSection = TPTab:CreateSection("Server Hop", true)
+StatsSection:AddDivider()
 
-ServerSection:AddSlider({
-    Label = "Min Players",
-    Min = 1,
-    Max = 20,
-    Default = 1,
-    Callback = function(v)
-        Settings.MinPlayers = v
-    end
-})
-
-ServerSection:AddSlider({
-    Label = "Max Players",
-    Min = 1,
-    Max = 20,
-    Default = 10,
-    Callback = function(v)
-        Settings.MaxPlayers = v
-    end
-})
-
-ServerSection:AddButton({
-    Label = "Server Hop",
-    Style = "primary",
-    Callback = function()
-        Window.Notify("Server Hop", "Finding new server...", 3, "info")
-        local success = ServerHop()
-        if not success then
-            Window.Notify("Server Hop", "No servers found with criteria", 3, "error")
-        end
-    end
-})
-
--- Events Tab
-local EventsTab = Window:CreateTab("Events")
-
-local EventsSection = EventsTab:CreateSection("Auto Events", true)
-
-EventsSection:AddToggle({
-    Label = "Auto Sea Events",
-    Default = false,
-    Callback = function(v)
-        Settings.AutoSeaEvents = v
-    end
-})
-
-EventsSection:AddToggle({
-    Label = "Auto Kitsune Island",
-    Default = false,
-    Callback = function(v)
-        Settings.AutoKitsune = v
-    end
-})
-
-EventsSection:AddToggle({
-    Label = "Auto Mirage Island",
-    Default = false,
-    Callback = function(v)
-        Settings.AutoMirage = v
-    end
-})
-
-EventsSection:AddButton({
-    Label = "Teleport to Kitsune Shrine",
+StatsSection:AddButton({
+    Label = "Rejoin Server",
     Style = "secondary",
     Callback = function()
-        if Islands["Kitsune Shrine"] then
-            TeleportTo(Islands["Kitsune Shrine"])
-            Window.Notify("Teleport", "Teleported to Kitsune Shrine", 2, "success")
+        game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
+    end
+})
+
+StatsSection:AddButton({
+    Label = "Server Hop",
+    Style = "secondary",
+    Callback = function()
+        local HttpService = game:GetService("HttpService")
+        local TeleportService = game:GetService("TeleportService")
+        
+        local success, servers = pcall(function()
+            local url = "https://games.roblox.com/v1/games/" .. game.GameId .. "/servers/Public?sortOrder=Asc&limit=100"
+            return HttpService:JSONDecode(game:HttpGet(url))
+        end)
+        
+        if success and servers and servers.data then
+            for _, server in ipairs(servers.data) do
+                if server.id ~= game.JobId and server.playing < server.maxPlayers then
+                    TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, LocalPlayer)
+                    return
+                end
+            end
         end
+        
+        Window.Notify("Server Hop", "No available servers found", 3, "warning")
     end
 })
 
 -- ============================================================================
--- STARTUP
+-- INITIALIZATION
 -- ============================================================================
 
-Window.Notify("Blox Fruits", "Script loaded successfully!", 3, "success")
-print("[FAMYY PRIVATE] Blox Fruits Script Loaded!")
+Window.Notify("Blox Fruits", "First Sea script loaded! Level: " .. getPlayerLevel(), 3, "success")
+
+print("[FamyyPrivate] Blox Fruits First Sea loaded!")
+print("[FamyyPrivate] Player Level:", getPlayerLevel())
+print("[FamyyPrivate] Enemies folder:", Workspace:FindFirstChild("Enemies") and "Found" or "Not found")
+
+return Library
