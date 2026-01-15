@@ -24,9 +24,9 @@ local GITHUB_RAW = "https://raw.githubusercontent.com/FamyXLyecdd/FamyyUILib/mai
 -- Supported games: PlaceId -> {Script, Name}
 local GAMES = {
     -- Blox Fruits
-    [2753915549] = {Script = "Scripts/BloxFruits.lua", Name = "Blox Fruits (First Sea)"},
-    [4442272183] = {Script = "Scripts/BloxFruits.lua", Name = "Blox Fruits (Second Sea)"},
-    [7449423635] = {Script = "Scripts/BloxFruits.lua", Name = "Blox Fruits (Third Sea)"},
+    [2753915549] = {Script = "Scripts/BloxFruits_Sea1.lua", Name = "Blox Fruits (First Sea)"},
+    [4442272183] = {Script = "Scripts/BloxFruits_Sea2.lua", Name = "Blox Fruits (Second Sea)"},
+    [7449423635] = {Script = "Scripts/BloxFruits_Sea3.lua", Name = "Blox Fruits (Third Sea)"},
     
     -- Waste Time
     [129548273770183] = {Script = "Scripts/WasteTime.lua", Name = "Waste Time"},
