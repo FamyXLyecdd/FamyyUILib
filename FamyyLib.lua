@@ -26,6 +26,9 @@ local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local MarketplaceService = game:GetService("MarketplaceService")
+local Stats = game:GetService("Stats")
 
 -- ============================================================================
 -- MODULE LOADING (for exploit environment, modules are embedded)
@@ -1350,6 +1353,243 @@ function Library:CreateWindow(config)
                 return {Frame = cont}
             end
             
+            --[[
+                Adds a user profile card
+                @param cfg table - {UserId}
+            ]]
+            function Section:AddProfile(cfg)
+                local userId = cfg.UserId or Players.LocalPlayer.UserId
+                
+                local frame = Instance.new("Frame")
+                frame.Size = UDim2.new(1, 0, 0, 60)
+                frame.BackgroundTransparency = 1
+                frame.Parent = contentContainer
+                
+                -- Profile picture
+                local pfp = Instance.new("ImageLabel")
+                pfp.Size = UDim2.new(0, 50, 0, 50)
+                pfp.Position = UDim2.new(0, 0, 0.5, -25)
+                pfp.BackgroundColor3 = Theme.Colors.Card
+                pfp.Parent = frame
+                Instance.new("UICorner", pfp).CornerRadius = UDim.new(1, 0)
+                
+                -- Load avatar async
+                task.spawn(function()
+                    local success, image = pcall(function()
+                        return Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+                    end)
+                    if success and image then
+                        pfp.Image = image
+                    end
+                end)
+                
+                -- Get player name
+                local playerName = "Player"
+                local player = Players:GetPlayerByUserId(userId)
+                if player then
+                    playerName = player.Name
+                end
+                
+                -- Welcome text
+                local textBox = Instance.new("TextLabel")
+                textBox.Size = UDim2.new(1, -65, 0, 40)
+                textBox.Position = UDim2.new(0, 65, 0.5, -20)
+                textBox.BackgroundTransparency = 1
+                textBox.Text = "Welcome, <font color=\"rgb(255,255,255)\"><b>" .. playerName .. "</b></font>"
+                textBox.RichText = true
+                textBox.TextColor3 = Theme.Colors.TextDim
+                textBox.Font = Theme.Fonts.Body
+                textBox.TextSize = 16
+                textBox.TextScaled = true
+                textBox.TextXAlignment = Enum.TextXAlignment.Left
+                textBox.Parent = frame
+                
+                local constraint = Instance.new("UITextSizeConstraint", textBox)
+                constraint.MaxTextSize = 18
+                constraint.MinTextSize = 10
+                
+                return {Frame = frame}
+            end
+            
+            --[[
+                Adds a stat grid (FPS, Ping, Time, Game)
+            ]]
+            function Section:AddStatGrid()
+                local startTime = os.time()
+                
+                local frame = Instance.new("Frame")
+                frame.Size = UDim2.new(1, 0, 0, 110)
+                frame.BackgroundTransparency = 1
+                frame.Parent = contentContainer
+                
+                local grid = Instance.new("UIGridLayout", frame)
+                grid.CellSize = UDim2.new(0.48, 0, 0, 50)
+                grid.CellPadding = UDim2.new(0, 8, 0, 8)
+                grid.SortOrder = Enum.SortOrder.LayoutOrder
+                
+                local function createCard(label)
+                    local card = Instance.new("Frame")
+                    card.BackgroundColor3 = Theme.Colors.Card
+                    card.Parent = frame
+                    Instance.new("UICorner", card).CornerRadius = Theme.Corners.Card
+                    
+                    connections:Track(card.MouseEnter:Connect(function()
+                        Tween.Play(card, {BackgroundColor3 = Theme.Colors.CardHover}, 0.15)
+                    end))
+                    connections:Track(card.MouseLeave:Connect(function()
+                        Tween.Play(card, {BackgroundColor3 = Theme.Colors.Card}, 0.15)
+                    end))
+                    
+                    local lbl = Instance.new("TextLabel")
+                    lbl.Size = UDim2.new(1, 0, 0, 12)
+                    lbl.Position = UDim2.new(0, 0, 0, 8)
+                    lbl.BackgroundTransparency = 1
+                    lbl.Text = label
+                    lbl.TextColor3 = Theme.Colors.TextDim
+                    lbl.Font = Theme.Fonts.Header
+                    lbl.TextSize = Theme.TextSizes.Tiny
+                    lbl.TextXAlignment = Enum.TextXAlignment.Center
+                    lbl.Parent = card
+                    
+                    local val = Instance.new("TextLabel")
+                    val.Size = UDim2.new(1, 0, 0, 20)
+                    val.Position = UDim2.new(0, 0, 0.5, 2)
+                    val.BackgroundTransparency = 1
+                    val.Text = "..."
+                    val.TextColor3 = Theme.Colors.Text
+                    val.Font = Theme.Fonts.Header
+                    val.TextSize = Theme.TextSizes.Header
+                    val.TextScaled = true
+                    val.TextXAlignment = Enum.TextXAlignment.Center
+                    val.Parent = card
+                    
+                    local c = Instance.new("UITextSizeConstraint", val)
+                    c.MaxTextSize = 18
+                    c.MinTextSize = 10
+                    
+                    return val
+                end
+                
+                local vFPS = createCard("FPS")
+                local vPing = createCard("PING")
+                local vTime = createCard("TIME")
+                local vGame = createCard("GAME")
+                
+                -- Update FPS and Ping
+                connections:Track(RunService.RenderStepped:Connect(function(dt)
+                    local fps = math.floor(1 / dt)
+                    vFPS.Text = tostring(fps)
+                    vFPS.TextColor3 = (fps >= 50 and Theme.Colors.Success) or (fps >= 30 and Theme.Colors.Warning) or Theme.Colors.Error
+                    
+                    local success, ping = pcall(function()
+                        return math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+                    end)
+                    if success then
+                        vPing.Text = ping .. "ms"
+                        vPing.TextColor3 = (ping < 100 and Theme.Colors.Success) or (ping < 200 and Theme.Colors.Warning) or Theme.Colors.Error
+                    end
+                end))
+                
+                -- Update time and game name
+                task.spawn(function()
+                    -- Get game name
+                    local success, info = pcall(function()
+                        return MarketplaceService:GetProductInfo(game.PlaceId)
+                    end)
+                    if success and info and info.Name then
+                        vGame.Text = info.Name
+                    else
+                        vGame.Text = "Unknown"
+                    end
+                    
+                    -- Update time loop
+                    while ScreenGui and ScreenGui.Parent do
+                        local elapsed = os.time() - startTime
+                        local minutes = math.floor(elapsed / 60)
+                        local seconds = elapsed % 60
+                        vTime.Text = string.format("%02d:%02d", minutes, seconds)
+                        task.wait(1)
+                    end
+                end)
+                
+                return {Frame = frame}
+            end
+            
+            --[[
+                Adds a Discord CTA button
+                @param cfg table - {InviteCode}
+            ]]
+            function Section:AddDiscordCTA(cfg)
+                local inviteCode = cfg.InviteCode or "discord"
+                
+                local btn = Instance.new("TextButton")
+                btn.Size = UDim2.new(1, 0, 0, 50)
+                btn.BackgroundColor3 = Theme.Colors.Discord
+                btn.Text = ""
+                btn.AutoButtonColor = false
+                btn.Parent = contentContainer
+                Instance.new("UICorner", btn).CornerRadius = Theme.Corners.Card
+                
+                local icon = Instance.new("ImageLabel")
+                icon.Size = UDim2.new(0, 32, 0, 32)
+                icon.Position = UDim2.new(0, 10, 0.5, -16)
+                icon.BackgroundTransparency = 1
+                icon.Image = "rbxassetid://16047585258"
+                icon.Parent = btn
+                
+                local titleLbl = Instance.new("TextLabel")
+                titleLbl.Size = UDim2.new(1, -60, 0, 16)
+                titleLbl.Position = UDim2.new(0, 50, 0.5, -9)
+                titleLbl.BackgroundTransparency = 1
+                titleLbl.Text = "JOIN DISCORD"
+                titleLbl.TextColor3 = Color3.new(1, 1, 1)
+                titleLbl.Font = Theme.Fonts.Title
+                titleLbl.TextSize = 16
+                titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+                titleLbl.Parent = btn
+                
+                local subLbl = Instance.new("TextLabel")
+                subLbl.Size = UDim2.new(1, -60, 0, 12)
+                subLbl.Position = UDim2.new(0, 50, 0.5, 7)
+                subLbl.BackgroundTransparency = 1
+                subLbl.Text = "Get Scripts, Configs & Support"
+                subLbl.TextColor3 = Color3.fromRGB(220, 220, 255)
+                subLbl.Font = Theme.Fonts.Header
+                subLbl.TextSize = Theme.TextSizes.Small
+                subLbl.TextXAlignment = Enum.TextXAlignment.Left
+                subLbl.Parent = btn
+                
+                connections:Track(btn.MouseEnter:Connect(function()
+                    Tween.Play(btn, {BackgroundColor3 = Theme.Colors.DiscordHover}, 0.15)
+                end))
+                connections:Track(btn.MouseLeave:Connect(function()
+                    Tween.Play(btn, {BackgroundColor3 = Theme.Colors.Discord}, 0.15)
+                end))
+                
+                connections:Track(btn.MouseButton1Click:Connect(function()
+                    local success = pcall(function()
+                        if setclipboard then
+                            setclipboard("https://discord.gg/" .. inviteCode)
+                        elseif toclipboard then
+                            toclipboard("https://discord.gg/" .. inviteCode)
+                        end
+                    end)
+                    
+                    titleLbl.Text = "LINK COPIED!"
+                    titleLbl.TextColor3 = Theme.Colors.Success
+                    Tween.Play(btn, {BackgroundColor3 = Theme.Colors.Card}, 0.15)
+                    Notify("Discord", "Invite link copied to clipboard!", 2, "success")
+                    
+                    task.delay(1.5, function()
+                        titleLbl.Text = "JOIN DISCORD"
+                        titleLbl.TextColor3 = Color3.new(1, 1, 1)
+                        Tween.Play(btn, {BackgroundColor3 = Theme.Colors.Discord}, 0.15)
+                    end)
+                end))
+                
+                return {Frame = btn}
+            end
+            
             table.insert(Tab.Sections, Section)
             return Section
         end
@@ -1389,4 +1629,33 @@ function Library:SetThemeColor(key, color)
     end
 end
 
+-- ============================================================================
+-- PERMANENT INITIALIZATION - FAMYY CATEGORY
+-- ============================================================================
+
+local Win = Library:CreateWindow({
+    Title = "FAMYY PRIVATE",
+    Keybind = Enum.KeyCode.RightShift
+})
+
+-- Create the permanent "Famy" tab
+local FamyTab = Win:CreateTab("Famy")
+
+-- Dashboard section with user profile
+local Dashboard = FamyTab:CreateSection("Dashboard", true)
+Dashboard:AddProfile({UserId = Players.LocalPlayer.UserId})
+
+-- Status section with real-time stats
+local Status = FamyTab:CreateSection("Status", true)
+Status:AddStatGrid()
+
+-- Socials section with Discord
+local Socials = FamyTab:CreateSection("Socials", true)
+Socials:AddDiscordCTA({InviteCode = "wkkgT7a57U"})
+
+-- Startup notification
+Win.Notify("FAMYY PRIVATE", "UI Loaded! Press RightShift to toggle.", 3, "success")
+
+-- Return both Library and the pre-created Window
+Library.Window = Win
 return Library

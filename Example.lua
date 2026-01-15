@@ -4,32 +4,25 @@
     This file demonstrates all available components and features
     of the FAMYY PRIVATE UI library.
     
+    The library comes with a pre-built "Famy" tab containing:
+    - Dashboard (User profile)
+    - Status (FPS, Ping, Time, Game)
+    - Socials (Discord invite)
+    
     To use this example:
     1. Load the library: local Library = loadstring(game:HttpGet("URL"))()
-    2. Or for local testing, require the FamyyLib module
+    2. Access the pre-created window: local Window = Library.Window
+    3. Or create additional tabs on the existing window
 ]]
 
 -- Load the library (adjust path as needed)
-local Library = loadstring(game:HttpGet("YOUR_URL_HERE"))() -- Replace with actual URL
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/FamyXLyecdd/FamyyUILib/main/FamyyLib.lua"))()
 -- Or for local development:
 -- local Library = require(script.Parent.FamyyLib)
 
--- ============================================================================
--- CREATE WINDOW
--- ============================================================================
-
-local Window = Library:CreateWindow({
-    Title = "FAMYY PRIVATE",           -- Window title
-    -- Subtitle = "v9.0",              -- Optional subtitle
-    Size = UDim2.new(0, 280, 0, 480),  -- Window size
-    Position = UDim2.new(0.05, 0, 0.5, -240), -- Window position
-    Keybind = Enum.KeyCode.RightShift, -- Toggle keybind
-    SaveConfig = true,                 -- Enable config saving
-    ConfigName = "MyScript",           -- Config file name
-})
-
--- Show welcome notification
-Window.Notify("Welcome!", "FAMYY PRIVATE loaded successfully", 3, "success")
+-- The library automatically creates a window with "Famy" tab
+-- Access it via Library.Window
+local Window = Library.Window
 
 -- ============================================================================
 -- CREATE TABS
