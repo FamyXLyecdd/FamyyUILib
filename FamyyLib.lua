@@ -377,29 +377,56 @@ function Library:CreateWindow(config)
     MinIcon.Visible = false
     MinIcon.Parent = Container
     
-    -- Tab Bar (Scrollable to handle many tabs)
-    local TabBar = Instance.new("ScrollingFrame")
+    -- Tab Bar (Carousel style - active tab centered)
+    local TabBarContainer = Instance.new("Frame")
+    TabBarContainer.Name = "TabBarContainer"
+    TabBarContainer.Size = UDim2.new(1, -30, 0, Theme.Sizes.TabBarHeight)
+    TabBarContainer.Position = UDim2.new(0, 15, 0, Theme.Sizes.HeaderHeight)
+    TabBarContainer.BackgroundColor3 = Theme.Colors.Surface
+    TabBarContainer.ClipsDescendants = true
+    TabBarContainer.Parent = Container
+    Instance.new("UICorner", TabBarContainer).CornerRadius = Theme.Corners.Card
+    
+    -- Left arrow button
+    local LeftArrow = Instance.new("TextButton")
+    LeftArrow.Name = "LeftArrow"
+    LeftArrow.Size = UDim2.new(0, 24, 1, 0)
+    LeftArrow.Position = UDim2.new(0, 0, 0, 0)
+    LeftArrow.BackgroundTransparency = 1
+    LeftArrow.Text = "<"
+    LeftArrow.TextColor3 = Theme.Colors.TextDim
+    LeftArrow.Font = Theme.Fonts.Header
+    LeftArrow.TextSize = 16
+    LeftArrow.AutoButtonColor = false
+    LeftArrow.ZIndex = 2
+    LeftArrow.Parent = TabBarContainer
+    
+    -- Right arrow button
+    local RightArrow = Instance.new("TextButton")
+    RightArrow.Name = "RightArrow"
+    RightArrow.Size = UDim2.new(0, 24, 1, 0)
+    RightArrow.Position = UDim2.new(1, -24, 0, 0)
+    RightArrow.BackgroundTransparency = 1
+    RightArrow.Text = ">"
+    RightArrow.TextColor3 = Theme.Colors.TextDim
+    RightArrow.Font = Theme.Fonts.Header
+    RightArrow.TextSize = 16
+    RightArrow.AutoButtonColor = false
+    RightArrow.ZIndex = 2
+    RightArrow.Parent = TabBarContainer
+    
+    -- Tab content area (between arrows)
+    local TabBar = Instance.new("Frame")
     TabBar.Name = "TabBar"
-    TabBar.Size = UDim2.new(1, -30, 0, Theme.Sizes.TabBarHeight)
-    TabBar.Position = UDim2.new(0, 15, 0, Theme.Sizes.HeaderHeight)
-    TabBar.BackgroundColor3 = Theme.Colors.Surface
-    TabBar.ScrollBarThickness = 0
-    TabBar.ScrollingDirection = Enum.ScrollingDirection.X
-    TabBar.CanvasSize = UDim2.new(0, 0, 0, 0)
-    TabBar.AutomaticCanvasSize = Enum.AutomaticSize.X
+    TabBar.Size = UDim2.new(1, -48, 1, 0)
+    TabBar.Position = UDim2.new(0, 24, 0, 0)
+    TabBar.BackgroundTransparency = 1
     TabBar.ClipsDescendants = true
-    TabBar.Parent = Container
-    Instance.new("UICorner", TabBar).CornerRadius = Theme.Corners.Card
+    TabBar.Parent = TabBarContainer
     
-    local TabLayout = Instance.new("UIListLayout", TabBar)
-    TabLayout.FillDirection = Enum.FillDirection.Horizontal
-    TabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-    TabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-    TabLayout.Padding = UDim.new(0, 2)
-    
-    local TabPadding = Instance.new("UIPadding", TabBar)
-    TabPadding.PaddingLeft = UDim.new(0, 4)
-    TabPadding.PaddingRight = UDim.new(0, 4)
+    -- Current tab index for carousel
+    local currentTabIndex = 1
+    local tabButtons = {}
     
     -- Content Frame
     local ContentFrame = Instance.new("Frame")
@@ -421,7 +448,7 @@ function Library:CreateWindow(config)
             Tween.Play(MainCorner, {CornerRadius = UDim.new(1, 0)}, 0.3)
             Tween.Play(MainStroke, {Color = Theme.Colors.Accent}, 0.3)
             Header.Visible = false
-            TabBar.Visible = false
+            TabBarContainer.Visible = false
             ContentFrame.Visible = false
             MinIcon.Visible = true
             
@@ -452,7 +479,7 @@ function Library:CreateWindow(config)
                 Tween.Play(MainStroke, {Color = Theme.Colors.Surface}, 0.3)
                 task.wait(0.2)
                 Header.Visible = true
-                TabBar.Visible = true
+                TabBarContainer.Visible = true
                 ContentFrame.Visible = true
             end
             
@@ -498,26 +525,122 @@ function Library:CreateWindow(config)
         @return Tab
     ]]
     function Window:CreateTab(name)
-        -- Fixed-width tabs with minimum size (prevents overflow)
-        local minTabWidth = 60
-        local maxTabWidth = 100
-        local tabWidth = math.clamp(TabBar.AbsoluteSize.X / math.max(#self.Tabs + 1, 1) - 4, minTabWidth, maxTabWidth)
+        local tabIndex = #self.Tabs + 1
         
+        -- Create tab button (will be positioned by updateTabDisplay)
         local tabBtn = Instance.new("TextButton")
-        tabBtn.Size = UDim2.new(0, tabWidth, 1, -4)
-        tabBtn.BackgroundTransparency = 0
-        tabBtn.BackgroundColor3 = Theme.Colors.Surface
+        tabBtn.Name = "Tab_" .. tabIndex
+        tabBtn.Size = UDim2.new(0, 80, 0, 24)
+        tabBtn.BackgroundTransparency = 1
         tabBtn.Text = name
         tabBtn.TextColor3 = Theme.Colors.TextDim
+        tabBtn.TextTransparency = 0.5
         tabBtn.Font = Theme.Fonts.Header
         tabBtn.TextSize = Theme.TextSizes.Caption
         tabBtn.TextTruncate = Enum.TextTruncate.AtEnd
         tabBtn.AutoButtonColor = false
+        tabBtn.Visible = false
         tabBtn.Parent = TabBar
-        Instance.new("UICorner", tabBtn).CornerRadius = Theme.Corners.Button
         
-        -- Don't resize existing tabs - fixed width allows scrolling
+        table.insert(tabButtons, {
+            Button = tabBtn,
+            Name = name,
+            Index = tabIndex,
+        })
         
+        -- Function to update tab carousel display
+        local function updateTabDisplay()
+            local totalTabs = #tabButtons
+            local barWidth = TabBar.AbsoluteSize.X
+            
+            for i, tabData in ipairs(tabButtons) do
+                local btn = tabData.Button
+                local offset = i - currentTabIndex
+                
+                -- Calculate position (center = 0 offset)
+                local centerX = barWidth / 2
+                local tabWidth = 80
+                local spacing = 10
+                
+                -- Position based on offset from current
+                local xPos = centerX + (offset * (tabWidth + spacing)) - (tabWidth / 2)
+                
+                -- Determine visibility and style based on position
+                local isCenter = (i == currentTabIndex)
+                local isAdjacent = math.abs(offset) == 1
+                local isVisible = math.abs(offset) <= 2
+                
+                btn.Visible = isVisible
+                btn.Position = UDim2.new(0, xPos, 0.5, -12)
+                
+                if isCenter then
+                    -- Active/centered tab - full opacity, larger
+                    Tween.Play(btn, {
+                        TextColor3 = Theme.Colors.Text,
+                        TextTransparency = 0,
+                        TextSize = 14,
+                    }, 0.2)
+                    btn.Size = UDim2.new(0, 90, 0, 24)
+                elseif isAdjacent then
+                    -- Adjacent tabs - dimmed, smaller
+                    Tween.Play(btn, {
+                        TextColor3 = Theme.Colors.TextDim,
+                        TextTransparency = 0.3,
+                        TextSize = 12,
+                    }, 0.2)
+                    btn.Size = UDim2.new(0, 70, 0, 20)
+                else
+                    -- Far tabs - very dim
+                    Tween.Play(btn, {
+                        TextColor3 = Theme.Colors.TextMuted,
+                        TextTransparency = 0.6,
+                        TextSize = 11,
+                    }, 0.2)
+                    btn.Size = UDim2.new(0, 60, 0, 18)
+                end
+            end
+            
+            -- Update arrow visibility
+            LeftArrow.Visible = currentTabIndex > 1
+            RightArrow.Visible = currentTabIndex < totalTabs
+            
+            -- Update arrow colors
+            LeftArrow.TextColor3 = currentTabIndex > 1 and Theme.Colors.Text or Theme.Colors.TextMuted
+            RightArrow.TextColor3 = currentTabIndex < totalTabs and Theme.Colors.Text or Theme.Colors.TextMuted
+        end
+        
+        -- Function to switch to this tab
+        local function switchToTab(index)
+            if index < 1 or index > #tabButtons then return end
+            
+            currentTabIndex = index
+            
+            -- Hide all pages
+            for _, child in ipairs(ContentFrame:GetChildren()) do
+                if child:IsA("ScrollingFrame") then child.Visible = false end
+            end
+            
+            -- Show selected page
+            local pageName = "Tab_" .. tabButtons[index].Name
+            local page = ContentFrame:FindFirstChild(pageName)
+            if page then
+                page.Visible = true
+                page.Position = UDim2.new(0.02, 0, 0, 0)
+                Tween.Play(page, {Position = UDim2.new(0, 0, 0, 0)}, 0.2)
+            end
+            
+            -- Update active tab reference
+            self.ActiveTab = tabButtons[index].Button
+            
+            -- Update display
+            updateTabDisplay()
+        end
+        
+        -- Store switch function for arrows
+        Window._switchToTab = switchToTab
+        Window._updateTabDisplay = updateTabDisplay
+        
+        -- Create content page
         local page = Instance.new("ScrollingFrame")
         page.Name = "Tab_" .. name
         page.Size = UDim2.new(1, 0, 1, 0)
@@ -541,40 +664,53 @@ function Library:CreateWindow(config)
         
         -- First tab is active by default
         if #self.Tabs == 0 then
+            currentTabIndex = 1
             self.ActiveTab = tabBtn
             page.Visible = true
-            tabBtn.TextColor3 = Theme.Colors.Text
         end
         
-        -- Tab click
-        connections:Track(tabBtn.MouseEnter:Connect(function()
-            if self.ActiveTab ~= tabBtn then
-                Tween.Play(tabBtn, {TextColor3 = Theme.Colors.Text}, 0.15)
-            end
-        end))
-        connections:Track(tabBtn.MouseLeave:Connect(function()
-            if self.ActiveTab ~= tabBtn then
-                Tween.Play(tabBtn, {TextColor3 = Theme.Colors.TextDim}, 0.15)
-            end
-        end))
+        -- Tab click - switch to this tab
         connections:Track(tabBtn.MouseButton1Click:Connect(function()
-            -- Hide all pages
-            for _, child in ipairs(ContentFrame:GetChildren()) do
-                if child:IsA("ScrollingFrame") then child.Visible = false end
-            end
-            -- Dim all tabs
-            for _, child in ipairs(TabBar:GetChildren()) do
-                if child:IsA("TextButton") then
-                    Tween.Play(child, {TextColor3 = Theme.Colors.TextDim}, 0.15)
-                end
-            end
-            -- Activate this tab
-            self.ActiveTab = tabBtn
-            page.Visible = true
-            Tween.Play(tabBtn, {TextColor3 = Theme.Colors.Text}, 0.15)
-            page.Position = UDim2.new(0.02, 0, 0, 0)
-            Tween.Play(page, {Position = UDim2.new(0, 0, 0, 0)}, 0.2)
+            switchToTab(tabIndex)
         end))
+        
+        -- Arrow click handlers (only set once)
+        if tabIndex == 1 then
+            connections:Track(LeftArrow.MouseButton1Click:Connect(function()
+                if currentTabIndex > 1 then
+                    switchToTab(currentTabIndex - 1)
+                end
+            end))
+            
+            connections:Track(RightArrow.MouseButton1Click:Connect(function()
+                if currentTabIndex < #tabButtons then
+                    switchToTab(currentTabIndex + 1)
+                end
+            end))
+            
+            -- Arrow hover effects
+            connections:Track(LeftArrow.MouseEnter:Connect(function()
+                if currentTabIndex > 1 then
+                    Tween.Play(LeftArrow, {TextColor3 = Theme.Colors.Accent}, 0.15)
+                end
+            end))
+            connections:Track(LeftArrow.MouseLeave:Connect(function()
+                LeftArrow.TextColor3 = currentTabIndex > 1 and Theme.Colors.Text or Theme.Colors.TextMuted
+            end))
+            connections:Track(RightArrow.MouseEnter:Connect(function()
+                if currentTabIndex < #tabButtons then
+                    Tween.Play(RightArrow, {TextColor3 = Theme.Colors.Accent}, 0.15)
+                end
+            end))
+            connections:Track(RightArrow.MouseLeave:Connect(function()
+                RightArrow.TextColor3 = currentTabIndex < #tabButtons and Theme.Colors.Text or Theme.Colors.TextMuted
+            end))
+        end
+        
+        -- Update display after adding tab
+        task.defer(function()
+            updateTabDisplay()
+        end)
         
         -- Tab object
         local Tab = {
