@@ -281,8 +281,42 @@ function Library:CreateWindow(config)
     Main.Position = position
     Main.BackgroundColor3 = Theme.Colors.Background
     Main.Active = true
-    Main.Draggable = true
     Main.Parent = ScreenGui
+    
+    -- Custom dragging (works when minimized too)
+    local dragInput, dragStart, startPos
+    local dragging = false
+    
+    local function updateDrag(input)
+        local delta = input.Position - dragStart
+        Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+    
+    Main.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = Main.Position
+            
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+    
+    Main.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            updateDrag(input)
+        end
+    end)
     
     local MainCorner = Instance.new("UICorner", Main)
     MainCorner.CornerRadius = Theme.Corners.Window
@@ -445,7 +479,31 @@ function Library:CreateWindow(config)
     
     -- Minimize/Expand logic
     local isMinimized = false
-    local expandBtn = nil
+    local lastClickTime = 0
+    
+    local function expand()
+        if not isMinimized then return end
+        isMinimized = false
+        MinIcon.Visible = false
+        Tween.Play(Main, {Size = size}, 0.3)
+        Tween.Play(MainCorner, {CornerRadius = Theme.Corners.Window}, 0.3)
+        Tween.Play(MainStroke, {Color = Theme.Colors.Surface}, 0.3)
+        task.wait(0.2)
+        Header.Visible = true
+        TabBarContainer.Visible = true
+        ContentFrame.Visible = true
+    end
+    
+    -- Double-click on minimized window to expand
+    Main.InputBegan:Connect(function(input)
+        if isMinimized and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+            local now = tick()
+            if now - lastClickTime < 0.3 then
+                expand()
+            end
+            lastClickTime = now
+        end
+    end)
     
     connections:Track(MinBtn.MouseButton1Click:Connect(function()
         isMinimized = not isMinimized
@@ -457,50 +515,6 @@ function Library:CreateWindow(config)
             TabBarContainer.Visible = false
             ContentFrame.Visible = false
             MinIcon.Visible = true
-            
-            -- Create expand button that doesn't block dragging
-            expandBtn = Instance.new("TextButton", Container)
-            expandBtn.Size = UDim2.new(1, 0, 1, 0)
-            expandBtn.BackgroundTransparency = 1
-            expandBtn.Text = ""
-            expandBtn.Active = false -- Allow drag events to pass through to Main
-            expandBtn.AutoButtonColor = false
-            
-            -- Use MouseButton1Click but also make MinIcon clickable
-            MinIcon.Active = true
-            local minIconBtn = Instance.new("TextButton", MinIcon)
-            minIconBtn.Size = UDim2.new(1, 0, 1, 0)
-            minIconBtn.BackgroundTransparency = 1
-            minIconBtn.Text = ""
-            minIconBtn.Active = false -- Don't block dragging
-            
-            local function expand()
-                isMinimized = false
-                if expandBtn then expandBtn:Destroy() expandBtn = nil end
-                if minIconBtn then minIconBtn:Destroy() end
-                MinIcon.Visible = false
-                MinIcon.Active = false
-                Tween.Play(Main, {Size = size}, 0.3)
-                Tween.Play(MainCorner, {CornerRadius = Theme.Corners.Window}, 0.3)
-                Tween.Play(MainStroke, {Color = Theme.Colors.Surface}, 0.3)
-                task.wait(0.2)
-                Header.Visible = true
-                TabBarContainer.Visible = true
-                ContentFrame.Visible = true
-            end
-            
-            -- Double-click to expand (single click allows drag)
-            local lastClick = 0
-            connections:Track(minIconBtn.MouseButton1Click:Connect(function()
-                local now = tick()
-                if now - lastClick < 0.3 then
-                    expand()
-                end
-                lastClick = now
-            end))
-            
-            -- Also expand on regular click of the expand button area
-            connections:Track(expandBtn.MouseButton1Click:Connect(expand))
         end
     end))
     
@@ -538,6 +552,7 @@ function Library:CreateWindow(config)
         tabBtn.Name = "Tab_" .. tabIndex
         tabBtn.Size = UDim2.new(0, 80, 0, 24)
         tabBtn.BackgroundTransparency = 1
+        tabBtn.BackgroundColor3 = Theme.Colors.Accent
         tabBtn.Text = name
         tabBtn.TextColor3 = Theme.Colors.TextDim
         tabBtn.TextTransparency = 0.5
@@ -547,6 +562,7 @@ function Library:CreateWindow(config)
         tabBtn.AutoButtonColor = false
         tabBtn.Visible = false
         tabBtn.Parent = TabBar
+        Instance.new("UICorner", tabBtn).CornerRadius = UDim.new(0, 6)
         
         table.insert(tabButtons, {
             Button = tabBtn,
@@ -558,69 +574,68 @@ function Library:CreateWindow(config)
         local function updateTabDisplay(animate)
             local totalTabs = #tabButtons
             local barWidth = TabBar.AbsoluteSize.X
-            if barWidth == 0 then barWidth = 200 end -- Fallback
+            if barWidth == 0 then barWidth = 250 end -- Fallback
+            
+            -- Calculate sizes - center tab takes priority
+            local centerTabWidth = 120
+            local adjacentTabWidth = 60
+            local centerX = barWidth / 2
             
             for i, tabData in ipairs(tabButtons) do
                 local btn = tabData.Button
                 local offset = i - currentTabIndex
                 
-                -- Calculate position (center = 0 offset)
-                local centerX = barWidth / 2
-                local tabWidth = 80
-                local spacing = 15
-                
-                -- Position based on offset from current
-                local xPos = centerX + (offset * (tabWidth + spacing)) - (tabWidth / 2)
-                
                 -- Determine visibility and style based on position
                 local isCenter = (i == currentTabIndex)
                 local isAdjacent = math.abs(offset) == 1
-                local isVisible = math.abs(offset) <= 2
+                local isVisible = math.abs(offset) <= 1 -- Only show center and adjacent
                 
                 btn.Visible = isVisible
                 
-                local targetPos = UDim2.new(0, xPos, 0.5, -12)
-                local animTime = animate ~= false and 0.25 or 0
+                local animTime = animate ~= false and 0.2 or 0
                 
                 if isCenter then
-                    -- Active/centered tab - full opacity, larger
-                    local targetSize = UDim2.new(0, 90, 0, 26)
+                    -- Active/centered tab - PROMINENT, with background indicator
+                    local xPos = centerX - (centerTabWidth / 2)
+                    local targetPos = UDim2.new(0, xPos, 0.5, -14)
+                    local targetSize = UDim2.new(0, centerTabWidth, 0, 28)
+                    
                     if animTime > 0 then
                         Tween.Play(btn, {Position = targetPos, Size = targetSize}, animTime)
-                        Tween.Play(btn, {TextColor3 = Theme.Colors.Text, TextTransparency = 0}, animTime)
+                        Tween.Play(btn, {TextColor3 = Theme.Colors.Text, TextTransparency = 0, BackgroundTransparency = 0.85}, animTime)
                     else
                         btn.Position = targetPos
                         btn.Size = targetSize
                         btn.TextColor3 = Theme.Colors.Text
                         btn.TextTransparency = 0
+                        btn.BackgroundTransparency = 0.85
                     end
-                    btn.TextSize = 14
+                    btn.BackgroundColor3 = Theme.Colors.Accent
+                    btn.TextSize = 15
                     btn.Font = Enum.Font.GothamBold
                 elseif isAdjacent then
-                    -- Adjacent tabs - dimmed, smaller
-                    local targetSize = UDim2.new(0, 70, 0, 22)
-                    if animTime > 0 then
-                        Tween.Play(btn, {Position = targetPos, Size = targetSize}, animTime)
-                        Tween.Play(btn, {TextColor3 = Theme.Colors.TextDim, TextTransparency = 0.3}, animTime)
+                    -- Adjacent tabs - small, faded, positioned at edges
+                    local xPos
+                    if offset < 0 then
+                        -- Left adjacent - position near left edge
+                        xPos = 5
                     else
-                        btn.Position = targetPos
-                        btn.Size = targetSize
-                        btn.TextColor3 = Theme.Colors.TextDim
-                        btn.TextTransparency = 0.3
+                        -- Right adjacent - position near right edge
+                        xPos = barWidth - adjacentTabWidth - 5
                     end
-                    btn.TextSize = 12
-                    btn.Font = Enum.Font.GothamMedium
-                else
-                    -- Far tabs - very dim
-                    local targetSize = UDim2.new(0, 60, 0, 20)
+                    
+                    local targetPos = UDim2.new(0, xPos, 0.5, -10)
+                    local targetSize = UDim2.new(0, adjacentTabWidth, 0, 20)
+                    
                     if animTime > 0 then
                         Tween.Play(btn, {Position = targetPos, Size = targetSize}, animTime)
-                        Tween.Play(btn, {TextColor3 = Theme.Colors.TextMuted, TextTransparency = 0.6}, animTime)
+                        Tween.Play(btn, {TextColor3 = Theme.Colors.TextMuted, TextTransparency = 0.4, BackgroundTransparency = 1}, animTime)
                     else
                         btn.Position = targetPos
                         btn.Size = targetSize
                         btn.TextColor3 = Theme.Colors.TextMuted
-                        btn.TextTransparency = 0.6
+                        btn.TextTransparency = 0.4
+                        btn.BackgroundTransparency = 1
                     end
                     btn.TextSize = 11
                     btn.Font = Enum.Font.Gotham
