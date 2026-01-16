@@ -1007,6 +1007,7 @@ local function CreateNode(instance, depth)
     local Row = Create("Frame", {
         Size = UDim2.new(1, 0, 0, 20),
         BackgroundTransparency = 1,
+        ClipsDescendants = true,
         Parent = Node
     })
     
@@ -1020,6 +1021,7 @@ local function CreateNode(instance, depth)
         Size = UDim2.new(1, -depth * 12, 1, 0),
         Position = UDim2.new(0, depth * 12, 0, 0),
         BackgroundTransparency = 1,
+        ClipsDescendants = true,
         Parent = Row
     })
     
@@ -1033,14 +1035,13 @@ local function CreateNode(instance, depth)
         Create("UICorner", {CornerRadius = UDim.new(0, 3)})
     })
     
-    local Arrow = Create("TextLabel", {
-        Size = UDim2.new(0, 14, 1, 0),
-        Position = UDim2.new(0, 2, 0, 0),
+    local Arrow = Create("ImageLabel", {
+        Size = UDim2.new(0, 10, 0, 10),
+        Position = UDim2.new(0, 4, 0.5, -5),
         BackgroundTransparency = 1,
-        Text = hasChildren and "▶" or "",
-        Font = Enum.Font.GothamBold,
-        TextSize = 8,
-        TextColor3 = Theme.TextMuted,
+        Image = hasChildren and "rbxassetid://6031091004" or "", -- Right arrow
+        ImageColor3 = Theme.TextMuted,
+        ScaleType = Enum.ScaleType.Fit,
         Parent = ContentFrame
     })
     
@@ -1210,7 +1211,7 @@ local function CreateNode(instance, depth)
             State.Expanded[instance] = not isExpanded
             
             if State.Expanded[instance] then
-                Arrow.Text = "▼"
+                Arrow.Rotation = 90 -- Rotate to point down
                 ChildContainer.Visible = true
                 
                 if not State.Nodes[instance].Loaded then
@@ -1223,7 +1224,7 @@ local function CreateNode(instance, depth)
                     end
                 end
             else
-                Arrow.Text = "▶"
+                Arrow.Rotation = 0 -- Point right
                 ChildContainer.Visible = false
             end
         end
