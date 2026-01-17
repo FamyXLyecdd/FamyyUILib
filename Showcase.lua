@@ -2071,18 +2071,6 @@ Dashboard:AddProfile({UserId = Players.LocalPlayer.UserId})
 local Status = FamyTab:CreateSection("Status", true)
 Status:AddStatGrid()
 
--- Theme Customization
-local Customization = FamyTab:CreateSection("Customization", true)
-Customization:AddDropdown({
-    Label = "Interface Theme",
-    Options = {"Famyy Purple", "Azure Blue", "Emerald Green", "Crimson Red", "Sunset Orange"},
-    Default = "Famyy Purple",
-    Callback = function(val)
-        Library:SetTheme(val)
-        Win.Notify("Theme Updated", "Switched to " .. val, 2, "info")
-    end
-})
-
 -- Socials section with Discord
 local Socials = FamyTab:CreateSection("Socials", true)
 Socials:AddDiscordCTA({InviteCode = "wkkgT7a57U"})
