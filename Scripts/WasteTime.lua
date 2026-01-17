@@ -451,10 +451,24 @@ end
 -- ANTI AFK
 -- ============================================================================
 local VirtualUser = game:GetService("VirtualUser")
+
+-- Reactive: When Roblox detects idle
 LocalPlayer.Idled:Connect(function()
     VirtualUser:CaptureController()
     VirtualUser:ClickButton2(Vector2.new())
-    print("[FAMYY] Anti-AFK triggered")
+    print("[FAMYY] Anti-AFK triggered (Idled)")
+end)
+
+-- Proactive: Loop every 10 minutes to prevent kick
+task.spawn(function()
+    while true do
+        task.wait(600) -- 10 minutes
+        pcall(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+        end)
+        print("[FAMYY] Anti-AFK triggered (Proactive)")
+    end
 end)
 
 -- ============================================================================
