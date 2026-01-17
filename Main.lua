@@ -112,8 +112,11 @@ end
 
 local function main()
     local placeId = game.PlaceId
+    local gameId = game.GameId
     local gameName = getGameName()
-    local gameData = GAMES[placeId]
+    
+    -- Check by PlaceId first, then GameId
+    local gameData = GAMES[placeId] or GAMES[gameId]
     
     print("")
     print("╔══════════════════════════════════════════╗")
@@ -121,6 +124,7 @@ local function main()
     print("╠══════════════════════════════════════════╣")
     print("║  Game: " .. gameName:sub(1, 32) .. string.rep(" ", math.max(0, 32 - #gameName)) .. " ║")
     print("║  PlaceId: " .. placeId .. string.rep(" ", math.max(0, 29 - #tostring(placeId))) .. " ║")
+    print("║  GameId:  " .. gameId .. string.rep(" ", math.max(0, 29 - #tostring(gameId))) .. " ║")
     print("╚══════════════════════════════════════════╝")
     print("")
     

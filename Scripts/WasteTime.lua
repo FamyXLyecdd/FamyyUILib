@@ -6,16 +6,13 @@
     ╚███╔███╔╝██║  ██║███████║   ██║   ███████╗       ██║   ██║██║ ╚═╝ ██║███████╗
      ╚══╝╚══╝ ╚═╝  ╚═╝╚══════╝   ╚═╝   ╚══════╝       ╚═╝   ╚═╝╚═╝     ╚═╝╚══════╝
     
-    FAMYY PRIVATE - Waste Time Script v1.0
+    FAMYY PRIVATE - Waste Time Script v2.0
     
-    FEATURES:
-    - Ultra Fast Auto Click (0ms - Remote based, no mouse needed)
-    - Auto Click Red Button
-    - Auto Click Green Button (Global)
-    - Auto Convert Time to Eons
-    - Zone Teleporter
-    - Auto Upgrade
-    - Speed/Fly/NoClip
+    UPDATED FEATURES:
+    - Auto Convert (Teleport & Return)
+    - Targeted Auto Click (Red/Green at coords)
+    - Auto Farm (Convert -> Highest Area)
+    - Auto Universe
 ]]
 
 -- ============================================================================
@@ -30,6 +27,22 @@ local UserInputService = game:GetService("UserInputService")
 
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+
+-- ============================================================================
+-- CONFIGURATION & LOCATIONS
+-- ============================================================================
+local LOCATIONS = {
+    Convert = Vector3.new(16.22, 1.63, 1.40),
+    ButtonRed = Vector3.new(-76.95, 3.79, 12.18),
+    ButtonGreen = Vector3.new(-93.95, 2.62, 32.50),
+    Universe = Vector3.new(1220.26, 86.92, -2841.28),
+    Areas = {
+        {Name = "10M Need", Pos = Vector3.new(3.34, 51.12, 31.20), Req = 1e7},
+        {Name = "1Sx Need", Pos = Vector3.new(2043.22, 1391.01, -2877.51), Req = 1e21},
+        {Name = "1Td Need", Pos = Vector3.new(1491.23, 1348.27, -2120.77), Req = 1e42},
+        {Name = "1Tvg Need", Pos = Vector3.new(1676.76, 381.59, -2850.33), Req = 1e72}
+    }
+}
 
 -- ============================================================================
 -- REMOTES
@@ -51,304 +64,280 @@ local Remotes = {
 _G.AutoClickRed = false
 _G.AutoClickGreen = false
 _G.AutoConvert = false
+_G.AutoFarm = false
+_G.AutoUniverse = false
 _G.AutoUpgrade = false
+_G.AutoDetectArea = false
 _G.ClickSpeed = 0 -- 0 = max speed
 _G.Fly = false
 _G.NoClip = false
 _G.Speed = 16
+_G.SelectedArea = LOCATIONS.Areas[1]
+
+-- ============================================================================
+-- HELPER FUNCTIONS
+-- ============================================================================
+local function ParseValue(val)
+    if type(val) == "number" then return val end
+    if type(val) == "string" then
+        -- Remove non-numeric characters except ., +, -, e
+        local clean = val:gsub("[^0-9%.%+%-e]", "")
+        return tonumber(clean) or 0
+    end
+    return 0
+end
+
+local function GetPlayerTime()
+    if LocalPlayer.leaderstats and LocalPlayer.leaderstats:FindFirstChild("Time") then
+        return ParseValue(LocalPlayer.leaderstats.Time.Value)
+    end
+    return 0
+end
 
 -- ============================================================================
 -- FIND BUTTONS
 -- ============================================================================
-local RedButton = nil
-local GreenButton = nil
-local ConvertButton = nil
+local RedButtonObj = nil
+local GreenButtonObj = nil
 
 local function FindButtons()
-    -- Find red button (THE BUTTON)
+    -- Search by coordinates
     for _, obj in pairs(Workspace:GetDescendants()) do
         if obj:IsA("BasePart") then
-            if obj.BrickColor == BrickColor.new("Bright red") or obj.Color == Color3.fromRGB(255, 0, 0) then
-                if obj.Size.X > 10 then -- Big button
-                    RedButton = obj
-                    print("[FAMYY] Found Red Button: " .. obj:GetFullName())
-                end
+            if (obj.Position - LOCATIONS.ButtonRed).Magnitude < 5 then
+                RedButtonObj = obj
+                print("[FAMYY] Found Red Button at coords: " .. obj:GetFullName())
+            elseif (obj.Position - LOCATIONS.ButtonGreen).Magnitude < 5 then
+                GreenButtonObj = obj
+                print("[FAMYY] Found Green Button at coords: " .. obj:GetFullName())
             end
-            if obj.BrickColor == BrickColor.new("Bright green") or obj.Color == Color3.fromRGB(0, 255, 0) then
-                if obj.Size.X > 5 then
-                    GreenButton = obj
-                    print("[FAMYY] Found Green Button: " .. obj:GetFullName())
-                end
-            end
-        end
-    end
-    
-    -- Find by name patterns
-    for _, obj in pairs(Workspace:GetDescendants()) do
-        if obj.Name:lower():find("button") or obj.Name:lower():find("click") then
-            if obj:IsA("BasePart") or obj:IsA("Model") then
-                print("[FAMYY] Found button-like object: " .. obj.Name .. " at " .. obj:GetFullName())
-            end
-        end
-        if obj.Name:lower():find("convert") then
-            ConvertButton = obj
-            print("[FAMYY] Found Convert: " .. obj:GetFullName())
         end
     end
 end
 
 -- ============================================================================
--- CLICK FUNCTIONS (Remote-based, no mouse)
+-- CLICK FUNCTIONS
 -- ============================================================================
 local function ClickButton(button)
     if not button then return end
     
-    -- Method 1: Fire PlayerEvent remote
-    if Remotes.PlayerEvent then
-        pcall(function()
-            Remotes.PlayerEvent:FireServer("Click")
-            Remotes.PlayerEvent:FireServer("ButtonClick")
-            Remotes.PlayerEvent:FireServer()
-        end)
-    end
-    
-    -- Method 2: Fire touch interest
-    if button:IsA("BasePart") then
-        local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if hrp and firetouchinterest then
-            pcall(function()
-                firetouchinterest(hrp, button, 0)
-                firetouchinterest(hrp, button, 1)
-            end)
-        end
-    end
-    
-    -- Method 3: Fire ClickDetector
+    -- Method 1: ClickDetector
     local clickDetector = button:FindFirstChildOfClass("ClickDetector") or 
-                          (button:IsA("Model") and button:FindFirstChildOfClass("ClickDetector", true))
+                          (button:IsA("Model") and button:FindFirstChildOfClass("ClickDetector", true)) or
+                          (button.Parent and button.Parent:FindFirstChildOfClass("ClickDetector"))
     if clickDetector then
         pcall(function()
             fireclickdetector(clickDetector)
         end)
     end
     
-    -- Method 4: Fire ProximityPrompt
-    local prompt = button:FindFirstChildOfClass("ProximityPrompt") or
-                   (button:IsA("Model") and button:FindFirstChildOfClass("ProximityPrompt", true))
-    if prompt then
-        pcall(function()
-            fireproximityprompt(prompt)
-        end)
+    -- Method 2: TouchInterest
+    if button:IsA("BasePart") and firetouchinterest then
+        local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            pcall(function()
+                firetouchinterest(hrp, button, 0)
+                firetouchinterest(hrp, button, 1)
+            end)
+        end
     end
 end
 
 local function ClickRed()
-    ClickButton(RedButton)
-    
-    -- Also try specific remotes for clicking
-    pcall(function()
-        Remotes.PlayerEvent:FireServer("ClickRed")
-        Remotes.PlayerEvent:FireServer("RedButton")
-        Remotes.PlayerEvent:FireServer("Click", "Red")
-    end)
-    
-    -- Try button particles (might register as click)
-    if Remotes.ButtonParticles then
-        pcall(function()
-            Remotes.ButtonParticles:FireServer()
-        end)
+    if RedButtonObj then
+        ClickButton(RedButtonObj)
+    else
+        -- Fallback if object not found (try blindly firing nearby)
+        -- Can't really do much without the object instance for ClickDetector
     end
 end
 
 local function ClickGreen()
-    ClickButton(GreenButton)
-    
-    pcall(function()
-        Remotes.PlayerEvent:FireServer("ClickGreen")
-        Remotes.PlayerEvent:FireServer("GreenButton")
-        Remotes.PlayerEvent:FireServer("Click", "Green")
-        Remotes.PlayerEvent:FireServer("GlobalClick")
-    end)
-end
-
-local function ConvertTime()
-    -- Try various convert methods
-    pcall(function()
-        Remotes.PlayerEvent:FireServer("Convert")
-        Remotes.PlayerEvent:FireServer("ConvertTime")
-        Remotes.PlayerEvent:FireServer("ConvertToEons")
-    end)
-    
-    -- Click convert button if found
-    if ConvertButton then
-        ClickButton(ConvertButton)
-    end
-    
-    -- Try upgrade event for convert
-    if Remotes.UpgradeEvent then
-        pcall(function()
-            Remotes.UpgradeEvent:FireServer("Convert")
-        end)
+    if GreenButtonObj then
+        ClickButton(GreenButtonObj)
     end
 end
 
 -- ============================================================================
--- AUTO CLICK LOOPS (ULTRA FAST - 0ms)
+-- AUTO CLICK LOOPS (ULTRA FAST)
 -- ============================================================================
-local ClickConnections = {}
+local Connections = {}
 
 local function StartAutoClickRed()
-    if ClickConnections.Red then return end
+    if Connections.Red then return end
     
-    -- Use RenderStepped for maximum speed (every frame)
-    ClickConnections.Red = RunService.RenderStepped:Connect(function()
+    -- RenderStepped for frame-perfect clicks
+    Connections.Red = RunService.RenderStepped:Connect(function()
         if _G.AutoClickRed then
             ClickRed()
         end
     end)
     
-    -- Also spawn a separate loop for even more clicks
-    ClickConnections.RedLoop = task.spawn(function()
+    -- Parallel Loop for speed
+    Connections.RedLoop = task.spawn(function()
         while _G.AutoClickRed do
             ClickRed()
             if _G.ClickSpeed > 0 then
-                task.wait(_G.ClickSpeed / 1000) -- Convert ms to seconds
+                task.wait(_G.ClickSpeed / 1000)
+            else
+                RunService.Heartbeat:Wait() -- Minimum wait if 0 to prevent crash, or just execute
             end
-            -- No wait = max speed
         end
     end)
 end
 
 local function StopAutoClickRed()
-    if ClickConnections.Red then
-        ClickConnections.Red:Disconnect()
-        ClickConnections.Red = nil
-    end
-    if ClickConnections.RedLoop then
-        task.cancel(ClickConnections.RedLoop)
-        ClickConnections.RedLoop = nil
-    end
+    if Connections.Red then Connections.Red:Disconnect() Connections.Red = nil end
+    if Connections.RedLoop then task.cancel(Connections.RedLoop) Connections.RedLoop = nil end
 end
 
 local function StartAutoClickGreen()
-    if ClickConnections.Green then return end
+    if Connections.Green then return end
     
-    ClickConnections.Green = RunService.RenderStepped:Connect(function()
+    Connections.Green = RunService.RenderStepped:Connect(function()
         if _G.AutoClickGreen then
             ClickGreen()
         end
     end)
     
-    ClickConnections.GreenLoop = task.spawn(function()
+    Connections.GreenLoop = task.spawn(function()
         while _G.AutoClickGreen do
             ClickGreen()
             if _G.ClickSpeed > 0 then
                 task.wait(_G.ClickSpeed / 1000)
+            else
+                RunService.Heartbeat:Wait()
             end
         end
     end)
 end
 
 local function StopAutoClickGreen()
-    if ClickConnections.Green then
-        ClickConnections.Green:Disconnect()
-        ClickConnections.Green = nil
-    end
-    if ClickConnections.GreenLoop then
-        task.cancel(ClickConnections.GreenLoop)
-        ClickConnections.GreenLoop = nil
-    end
+    if Connections.Green then Connections.Green:Disconnect() Connections.Green = nil end
+    if Connections.GreenLoop then task.cancel(Connections.GreenLoop) Connections.GreenLoop = nil end
 end
 
 -- ============================================================================
--- AUTO CONVERT
+-- AUTO CONVERT (TELEPORT & RETURN)
 -- ============================================================================
 local function StartAutoConvert()
-    ClickConnections.Convert = task.spawn(function()
+    if Connections.Convert then return end
+    
+    Connections.Convert = task.spawn(function()
         while _G.AutoConvert do
-            ConvertTime()
-            task.wait(0.5) -- Convert every 0.5 seconds
+            local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local lastCFrame = hrp.CFrame
+                
+                -- Teleport to Convert
+                hrp.CFrame = CFrame.new(LOCATIONS.Convert)
+                
+                -- Wait for convert
+                task.wait(0.5)
+                
+                -- Return
+                if _G.AutoConvert then -- Check if still enabled
+                    hrp.CFrame = lastCFrame
+                end
+            end
+            
+            -- Wait 60 seconds (default)
+            for i = 1, 60 do
+                if not _G.AutoConvert then break end
+                task.wait(1)
+            end
         end
     end)
 end
 
 local function StopAutoConvert()
-    if ClickConnections.Convert then
-        task.cancel(ClickConnections.Convert)
-        ClickConnections.Convert = nil
-    end
+    if Connections.Convert then task.cancel(Connections.Convert) Connections.Convert = nil end
 end
 
 -- ============================================================================
--- ZONE TELEPORTER
+-- AUTO FARM (CONVERT -> HIGHEST AREA)
 -- ============================================================================
-local Zones = {}
+local function StartAutoFarm()
+    if Connections.AutoFarm then return end
+    
+    Connections.AutoFarm = task.spawn(function()
+        while _G.AutoFarm do
+            local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                -- 0. Check Best Area if Auto Detect is on (before convert)
+                if _G.AutoDetectArea then
+                    local myTime = GetPlayerTime()
+                    local best = LOCATIONS.Areas[1]
+                    for _, area in ipairs(LOCATIONS.Areas) do
+                        if myTime >= area.Req then
+                            best = area
+                        end
+                    end
+                    _G.SelectedArea = best
+                    -- Update dropdown visual if possible (library dependent)
+                end
 
-local function FindZones()
-    Zones = {}
-    
-    -- Look for zone folder
-    local zonesFolder = Workspace:FindFirstChild("Zones") or Workspace:FindFirstChild("Areas") or Workspace:FindFirstChild("Maps")
-    if zonesFolder then
-        for _, zone in pairs(zonesFolder:GetChildren()) do
-            if zone:IsA("Model") or zone:IsA("Folder") then
-                local pos = nil
-                local part = zone:FindFirstChildWhichIsA("BasePart", true)
-                if part then
-                    pos = part.Position
+                -- 1. Teleport to Convert
+                hrp.CFrame = CFrame.new(LOCATIONS.Convert)
+                task.wait(1)
+                
+                if not _G.AutoFarm then break end
+                
+                -- 2. Teleport to Selected Area
+                if _G.SelectedArea and _G.SelectedArea.Pos then
+                    hrp.CFrame = CFrame.new(_G.SelectedArea.Pos)
                 end
-                table.insert(Zones, {Name = zone.Name, Position = pos, Object = zone})
+                
+                -- Wait 1 second
+                task.wait(1)
+            else
+                task.wait(1)
             end
         end
-    end
-    
-    -- Also look for spawn points or teleport pads
-    for _, obj in pairs(Workspace:GetDescendants()) do
-        if obj.Name:lower():find("zone") or obj.Name:lower():find("area") or obj.Name:lower():find("world") then
-            if obj:IsA("Model") or obj:IsA("BasePart") then
-                local pos = obj:IsA("BasePart") and obj.Position or (obj:FindFirstChildWhichIsA("BasePart") and obj:FindFirstChildWhichIsA("BasePart").Position)
-                if pos then
-                    table.insert(Zones, {Name = obj.Name, Position = pos, Object = obj})
-                end
-            end
-        end
-    end
-    
-    print("[FAMYY] Found " .. #Zones .. " zones")
-    return Zones
+    end)
 end
 
-local function TeleportToZone(zoneName)
-    -- Try remote first
-    if Remotes.TeleportToZone then
-        pcall(function()
-            Remotes.TeleportToZone:FireServer(zoneName)
-        end)
-    end
+local function StopAutoFarm()
+    if Connections.AutoFarm then task.cancel(Connections.AutoFarm) Connections.AutoFarm = nil end
+end
+
+-- ============================================================================
+-- AUTO UNIVERSE
+-- ============================================================================
+local function StartAutoUniverse()
+    if Connections.AutoUniverse then return end
     
-    -- Find and teleport directly
-    for _, zone in pairs(Zones) do
-        if zone.Name:lower():find(zoneName:lower()) then
-            if zone.Position then
-                local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    hrp.CFrame = CFrame.new(zone.Position + Vector3.new(0, 5, 0))
-                    print("[FAMYY] Teleported to: " .. zone.Name)
-                    return
+    Connections.AutoUniverse = task.spawn(function()
+        while _G.AutoUniverse do
+            local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                hrp.CFrame = CFrame.new(LOCATIONS.Universe)
+                
+                -- Try to interact with anything nearby (ProximityPrompt)
+                for _, obj in pairs(Workspace:GetDescendants()) do
+                    if obj:IsA("ProximityPrompt") then
+                        if obj.Parent and obj.Parent:IsA("BasePart") then
+                            if (obj.Parent.Position - LOCATIONS.Universe).Magnitude < 15 then
+                                fireproximityprompt(obj)
+                            end
+                        end
+                    end
                 end
             end
+            task.wait(1) -- Check loop
         end
-    end
+    end)
+end
+
+local function StopAutoUniverse()
+    if Connections.AutoUniverse then task.cancel(Connections.AutoUniverse) Connections.AutoUniverse = nil end
 end
 
 -- ============================================================================
 -- PLAYER MODS
 -- ============================================================================
-local FlyConnection = nil
-local NoClipConnection = nil
-
 local function StartFly()
-    if FlyConnection then return end
+    if Connections.Fly then return end
     
     local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
@@ -365,30 +354,18 @@ local function StartFly()
     bg.P = 1000000
     bg.Parent = hrp
     
-    FlyConnection = RunService.RenderStepped:Connect(function()
+    Connections.Fly = RunService.RenderStepped:Connect(function()
         if not _G.Fly then return end
         
         local camera = Workspace.CurrentCamera
         local moveDir = Vector3.new(0, 0, 0)
         
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-            moveDir = moveDir + camera.CFrame.LookVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-            moveDir = moveDir - camera.CFrame.LookVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-            moveDir = moveDir - camera.CFrame.RightVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-            moveDir = moveDir + camera.CFrame.RightVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-            moveDir = moveDir + Vector3.new(0, 1, 0)
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-            moveDir = moveDir - Vector3.new(0, 1, 0)
-        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - camera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - camera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0, 1, 0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir = moveDir - Vector3.new(0, 1, 0) end
         
         bv.Velocity = moveDir.Magnitude > 0 and moveDir.Unit * 100 or Vector3.new(0, 0, 0)
         bg.CFrame = camera.CFrame
@@ -396,11 +373,7 @@ local function StartFly()
 end
 
 local function StopFly()
-    if FlyConnection then
-        FlyConnection:Disconnect()
-        FlyConnection = nil
-    end
-    
+    if Connections.Fly then Connections.Fly:Disconnect() Connections.Fly = nil end
     local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if hrp then
         local bv = hrp:FindFirstChild("FamyyFly")
@@ -411,16 +384,13 @@ local function StopFly()
 end
 
 local function StartNoClip()
-    if NoClipConnection then return end
-    
-    NoClipConnection = RunService.Stepped:Connect(function()
+    if Connections.NoClip then return end
+    Connections.NoClip = RunService.Stepped:Connect(function()
         if _G.NoClip then
             local char = LocalPlayer.Character
             if char then
                 for _, part in pairs(char:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.CanCollide = false
-                    end
+                    if part:IsA("BasePart") then part.CanCollide = false end
                 end
             end
         end
@@ -428,10 +398,7 @@ local function StartNoClip()
 end
 
 local function StopNoClip()
-    if NoClipConnection then
-        NoClipConnection:Disconnect()
-        NoClipConnection = nil
-    end
+    if Connections.NoClip then Connections.NoClip:Disconnect() Connections.NoClip = nil end
 end
 
 -- ============================================================================
@@ -449,33 +416,23 @@ local ClickTab = Window:CreateTab("Auto Click")
 
 local ClickSection = ClickTab:CreateSection("Button Clicker", true)
 
-ClickSection:AddLabel({Text = "Ultra Fast (0ms) - Remote Based", Bold = true})
+ClickSection:AddLabel({Text = "Targets Red/Green buttons at specific coords", Bold = false})
 
 ClickSection:AddToggle({
-    Label = "Auto Click RED Button",
+    Label = "Auto Click RED Button (Ultra Fast)",
     Default = false,
     Callback = function(v)
         _G.AutoClickRed = v
-        if v then
-            StartAutoClickRed()
-            Window.Notify("Auto Click", "Red Button - ULTRA FAST!", 2, "success")
-        else
-            StopAutoClickRed()
-        end
+        if v then StartAutoClickRed() else StopAutoClickRed() end
     end
 })
 
 ClickSection:AddToggle({
-    Label = "Auto Click GREEN Button",
+    Label = "Auto Click GREEN Button (Ultra Fast)",
     Default = false,
     Callback = function(v)
         _G.AutoClickGreen = v
-        if v then
-            StartAutoClickGreen()
-            Window.Notify("Auto Click", "Green Button - ULTRA FAST!", 2, "success")
-        else
-            StopAutoClickGreen()
-        end
+        if v then StartAutoClickGreen() else StopAutoClickGreen() end
     end
 })
 
@@ -489,103 +446,95 @@ ClickSection:AddSlider({
     end
 })
 
-local ConvertSection = ClickTab:CreateSection("Convert", true)
+local ConvertSection = ClickTab:CreateSection("Convert & Farm", true)
 
 ConvertSection:AddToggle({
-    Label = "Auto Convert Time to Eons",
+    Label = "Auto Convert (Teleport & Return - 60s)",
     Default = false,
     Callback = function(v)
         _G.AutoConvert = v
-        if v then
-            StartAutoConvert()
-            Window.Notify("Auto Convert", "Converting Time to Eons!", 2, "success")
-        else
-            StopAutoConvert()
-        end
+        if v then StartAutoConvert() else StopAutoConvert() end
     end
 })
 
-ConvertSection:AddButton({
-    Label = "Convert Now",
-    Style = "primary",
-    Callback = function()
-        ConvertTime()
-        Window.Notify("Convert", "Converted!", 1, "success")
-    end
-})
-
--- Teleport Tab
-local TeleportTab = Window:CreateTab("Teleport")
-
-local ZoneSection = TeleportTab:CreateSection("Zones", true)
-
-ZoneSection:AddButton({
-    Label = "Refresh Zones",
-    Style = "secondary",
-    Callback = function()
-        FindZones()
-        Window.Notify("Zones", "Found " .. #Zones .. " zones", 2, "info")
-    end
-})
-
--- We'll add zone buttons after finding them
-local function AddZoneButtons()
-    for _, zone in pairs(Zones) do
-        ZoneSection:AddButton({
-            Label = zone.Name,
-            Style = "secondary",
-            Callback = function()
-                TeleportToZone(zone.Name)
-            end
-        })
-    end
+-- Area Dropdown for Auto Farm
+local areaNames = {}
+for _, area in ipairs(LOCATIONS.Areas) do
+    table.insert(areaNames, area.Name)
 end
 
-local TeleportSection = TeleportTab:CreateSection("Quick Teleport", true)
-
-TeleportSection:AddButton({
-    Label = "Teleport to Red Button",
-    Style = "primary",
-    Callback = function()
-        if RedButton then
-            local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                hrp.CFrame = RedButton.CFrame * CFrame.new(0, 5, 0)
+ConvertSection:AddDropdown({
+    Label = "Select Highest Area",
+    Options = areaNames,
+    Default = areaNames[1],
+    Callback = function(v)
+        for _, area in ipairs(LOCATIONS.Areas) do
+            if area.Name == v then
+                _G.SelectedArea = area
+                _G.AutoDetectArea = false -- Disable auto if manual select
+                break
             end
         end
     end
 })
 
-TeleportSection:AddButton({
-    Label = "Teleport to Green Button",
-    Style = "primary",
-    Callback = function()
-        if GreenButton then
-            local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                hrp.CFrame = GreenButton.CFrame * CFrame.new(0, 5, 0)
-            end
-        end
+ConvertSection:AddToggle({
+    Label = "Auto Detect Best Area (Uses Time)",
+    Default = false,
+    Callback = function(v)
+        _G.AutoDetectArea = v
     end
 })
 
-TeleportSection:AddButton({
-    Label = "Teleport to Convert",
+ConvertSection:AddToggle({
+    Label = "Auto Farm (Convert -> Area)",
+    Default = false,
+    Callback = function(v)
+        _G.AutoFarm = v
+        if v then StartAutoFarm() else StopAutoFarm() end
+    end
+})
+
+-- Stat Monitor
+ConvertSection:AddLabel({Text = "Stats Monitor", Bold = true})
+task.spawn(function()
+    while true do
+        if LocalPlayer.leaderstats and LocalPlayer.leaderstats:FindFirstChild("Time") then
+            -- This is just for debug/info, library might not support dynamic label updates easily
+            -- but we assume the user checks the game UI
+        end
+        task.wait(1)
+    end
+end)
+
+-- Universe Tab
+local UniverseTab = Window:CreateTab("Universe")
+local UniverseSection = UniverseTab:CreateSection("Universe / Godliness", true)
+
+UniverseSection:AddLabel({Text = "Teleports to Universe area for reset/godliness", Bold = false})
+
+UniverseSection:AddToggle({
+    Label = "Auto Universe Loop",
+    Default = false,
+    Callback = function(v)
+        _G.AutoUniverse = v
+        if v then StartAutoUniverse() else StopAutoUniverse() end
+    end
+})
+
+UniverseSection:AddButton({
+    Label = "Teleport to Universe Once",
     Style = "primary",
     Callback = function()
-        if ConvertButton then
-            local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            local pos = ConvertButton:IsA("BasePart") and ConvertButton.Position or ConvertButton:FindFirstChildWhichIsA("BasePart").Position
-            if hrp and pos then
-                hrp.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0))
-            end
+        local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.CFrame = CFrame.new(LOCATIONS.Universe)
         end
     end
 })
 
 -- Player Tab
 local PlayerTab = Window:CreateTab("Player")
-
 local SpeedSection = PlayerTab:CreateSection("Movement", true)
 
 SpeedSection:AddSlider({
@@ -596,9 +545,7 @@ SpeedSection:AddSlider({
     Callback = function(v)
         _G.Speed = v
         local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum.WalkSpeed = v
-        end
+        if hum then hum.WalkSpeed = v end
     end
 })
 
@@ -623,12 +570,7 @@ FlySection:AddToggle({
     Default = false,
     Callback = function(v)
         _G.Fly = v
-        if v then
-            StartFly()
-            Window.Notify("Fly", "Enabled! WASD + Space/Ctrl", 2, "success")
-        else
-            StopFly()
-        end
+        if v then StartFly() else StopFly() end
     end
 })
 
@@ -637,63 +579,12 @@ FlySection:AddToggle({
     Default = false,
     Callback = function(v)
         _G.NoClip = v
-        if v then
-            StartNoClip()
-        else
-            StopNoClip()
-        end
+        if v then StartNoClip() else StopNoClip() end
     end
 })
 
 -- Misc Tab
 local MiscTab = Window:CreateTab("Misc")
-
-local UpgradeSection = MiscTab:CreateSection("Upgrades", true)
-
-UpgradeSection:AddToggle({
-    Label = "Auto Upgrade",
-    Default = false,
-    Callback = function(v)
-        _G.AutoUpgrade = v
-        if v then
-            task.spawn(function()
-                while _G.AutoUpgrade do
-                    pcall(function()
-                        Remotes.UpgradeEvent:FireServer()
-                        Remotes.UpgradeEvent:FireServer("Upgrade")
-                        Remotes.UpgradeEvent:FireServer("Buy")
-                    end)
-                    task.wait(0.1)
-                end
-            end)
-        end
-    end
-})
-
-UpgradeSection:AddButton({
-    Label = "Upgrade Once",
-    Style = "secondary",
-    Callback = function()
-        pcall(function()
-            Remotes.UpgradeEvent:FireServer()
-        end)
-    end
-})
-
-local AuraSection = MiscTab:CreateSection("Auras", true)
-
-AuraSection:AddButton({
-    Label = "Request Aura",
-    Style = "secondary",
-    Callback = function()
-        if Remotes.AuraRequest then
-            pcall(function()
-                Remotes.AuraRequest:FireServer()
-            end)
-        end
-    end
-})
-
 local ServerSection = MiscTab:CreateSection("Server", true)
 
 ServerSection:AddButton({
@@ -704,35 +595,17 @@ ServerSection:AddButton({
     end
 })
 
-ServerSection:AddButton({
-    Label = "Server Hop",
-    Style = "secondary",
-    Callback = function()
-        local servers = game:GetService("HttpService"):JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"))
-        for _, server in pairs(servers.data) do
-            if server.id ~= game.JobId then
-                game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, server.id, LocalPlayer)
-                break
-            end
-        end
-    end
-})
-
 -- ============================================================================
 -- INITIALIZATION
 -- ============================================================================
 
--- Find game objects
 FindButtons()
-FindZones()
 
 -- Keep speed updated
 RunService.Heartbeat:Connect(function()
     if _G.Speed > 16 then
         local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum.WalkSpeed = _G.Speed
-        end
+        if hum then hum.WalkSpeed = _G.Speed end
     end
 end)
 
@@ -741,28 +614,10 @@ LocalPlayer.CharacterAdded:Connect(function(char)
     Character = char
     task.wait(1)
     FindButtons()
-    
-    if _G.Fly then
-        StartFly()
-    end
-    if _G.NoClip then
-        StartNoClip()
-    end
+    if _G.Fly then StartFly() end
+    if _G.NoClip then StartNoClip() end
 end)
 
--- Notify
-Window.Notify("FAMYY PRIVATE", "Waste Time Script Loaded!", 3, "success")
-Window.Notify("Auto Click", "0ms = Maximum Speed (per frame)", 4, "info")
-
-print("================================================================================")
-print("[FAMYY PRIVATE] Waste Time Script v1.0")
-print("================================================================================")
-print("Features:")
-print("  - Ultra Fast Auto Click (0ms, remote-based)")
-print("  - Auto Click Red/Green Button")
-print("  - Auto Convert Time to Eons")
-print("  - Zone Teleporter")
-print("  - Fly, NoClip, Speed")
-print("================================================================================")
+Window.Notify("FAMYY PRIVATE", "Waste Time Script Updated!", 3, "success")
 
 return Library
