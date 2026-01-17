@@ -551,6 +551,7 @@ function Library:CreateWindow(config)
         Header.Visible = true
         TabBarContainer.Visible = true
         ContentFrame.Visible = true
+        Footer.Visible = true
     end
     
     -- Double-click on minimized window to expand (only if not dragging)
@@ -594,6 +595,7 @@ function Library:CreateWindow(config)
             Header.Visible = false
             TabBarContainer.Visible = false
             ContentFrame.Visible = false
+            Footer.Visible = false
             MinIcon.Visible = true
         end
     end))
