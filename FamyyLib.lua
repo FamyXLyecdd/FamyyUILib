@@ -119,7 +119,7 @@ local Theme = {
         DiscordCTAHeight = 50,
         WindowPadding = 15,
         ComponentPadding = 12,
-        ComponentSpacing = 2,
+        ComponentSpacing = 6,
     },
     Corners = {
         Window = UDim.new(0, 12),
@@ -340,8 +340,8 @@ function Library:CreateWindow(config)
     Footer.BackgroundTransparency = 1
     Footer.Text = "Made By Famy"
     Footer.TextColor3 = Theme.Colors.TextMuted
-    Footer.Font = Theme.Fonts.Caption
-    Footer.TextSize = 10
+    Footer.Font = Theme.Fonts.Title
+    Footer.TextSize = 12
     Footer.TextXAlignment = Enum.TextXAlignment.Right
     Footer.Parent = Main
     
@@ -1524,7 +1524,8 @@ function Library:CreateWindow(config)
                 frame.Parent = contentContainer
                 
                 local lbl = Instance.new("TextLabel")
-                lbl.Size = UDim2.new(0.4, -5, 1, 0)
+                lbl.Size = UDim2.new(1, 0, 0, 16)
+                lbl.Position = UDim2.new(0, 0, 0, 0)
                 lbl.BackgroundTransparency = 1
                 lbl.Text = cfg.Label or "Input"
                 lbl.TextColor3 = Theme.Colors.Text
@@ -1534,8 +1535,8 @@ function Library:CreateWindow(config)
                 lbl.Parent = frame
                 
                 local inputCont = Instance.new("Frame")
-                inputCont.Size = UDim2.new(0.6, 0, 0, 28)
-                inputCont.Position = UDim2.new(0.4, 0, 0.5, -14)
+                inputCont.Size = UDim2.new(1, 0, 0, 30)
+                inputCont.Position = UDim2.new(0, 0, 0, 20)
                 inputCont.BackgroundColor3 = Theme.Colors.Surface
                 inputCont.Parent = frame
                 Instance.new("UICorner", inputCont).CornerRadius = Theme.Corners.Input
