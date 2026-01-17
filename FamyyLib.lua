@@ -1316,6 +1316,7 @@ function Library:CreateWindow(config)
                 local ddOpen = false
                 local optHeight = 28
                 local maxVisible = 5
+                local searchHeight = 32
                 
                 local frame = Instance.new("Frame")
                 frame.Size = UDim2.new(1, 0, 0, Theme.Sizes.DropdownHeight)
@@ -1377,22 +1378,71 @@ function Library:CreateWindow(config)
                 arrow.ImageColor3 = Theme.Colors.TextDim
                 arrow.Parent = header
                 
+                -- Search Bar
+                local searchFrame = Instance.new("Frame")
+                searchFrame.Size = UDim2.new(1, 0, 0, searchHeight)
+                searchFrame.Position = UDim2.new(0, 0, 0, Theme.Sizes.DropdownHeight + 4)
+                searchFrame.BackgroundTransparency = 1
+                searchFrame.Visible = false
+                searchFrame.ZIndex = 20
+                searchFrame.Parent = frame
+                
+                local searchInput = Instance.new("TextBox")
+                searchInput.Size = UDim2.new(1, -10, 0, 24)
+                searchInput.Position = UDim2.new(0, 5, 0, 4)
+                searchInput.BackgroundColor3 = Theme.Colors.Surface
+                searchInput.BorderColor3 = Theme.Colors.TextDim
+                searchInput.BorderSizePixel = 1
+                searchInput.Text = ""
+                searchInput.PlaceholderText = "Search..."
+                searchInput.TextColor3 = Theme.Colors.Text
+                searchInput.PlaceholderColor3 = Theme.Colors.TextDim
+                searchInput.Font = Theme.Fonts.Body
+                searchInput.TextSize = 12
+                searchInput.ZIndex = 21
+                searchInput.Parent = searchFrame
+                Instance.new("UICorner", searchInput).CornerRadius = UDim.new(0, 4)
+                
                 local optContainer = Instance.new("ScrollingFrame")
                 optContainer.Size = UDim2.new(1, 0, 0, 0)
-                optContainer.Position = UDim2.new(0, 0, 0, Theme.Sizes.DropdownHeight + 4)
+                optContainer.Position = UDim2.new(0, 0, 0, Theme.Sizes.DropdownHeight + 4 + searchHeight)
                 optContainer.BackgroundColor3 = Theme.Colors.Surface
                 optContainer.BorderSizePixel = 0
                 optContainer.ScrollBarThickness = 2
                 optContainer.ScrollBarImageColor3 = Theme.Colors.Accent
-                optContainer.CanvasSize = UDim2.new(0, 0, 0, #options * optHeight)
                 optContainer.Visible = false
-                optContainer.ZIndex = 20 -- Boost ZIndex
+                optContainer.ZIndex = 20
+                optContainer.Active = true
                 optContainer.Parent = frame
                 Instance.new("UICorner", optContainer).CornerRadius = Theme.Corners.Button
-                -- Removed UIStroke for cleaner look
                 Instance.new("UIListLayout", optContainer).SortOrder = Enum.SortOrder.LayoutOrder
                 
                 local optBtns = {}
+                
+                local function updateSearch()
+                    local query = searchInput.Text:lower()
+                    local visibleCount = 0
+                    for _, data in ipairs(optBtns) do
+                        if data.val:lower():find(query) then
+                            data.btn.Visible = true
+                            visibleCount = visibleCount + 1
+                        else
+                            data.btn.Visible = false
+                        end
+                    end
+                    optContainer.CanvasSize = UDim2.new(0, 0, 0, visibleCount * optHeight)
+                    return visibleCount
+                end
+                
+                searchInput:GetPropertyChangedSignal("Text"):Connect(function()
+                    local visibleCount = updateSearch()
+                    if ddOpen then
+                        local h = math.min(visibleCount, maxVisible) * optHeight
+                        local totalH = Theme.Sizes.DropdownHeight + 4 + searchHeight + h + 4
+                        Tween.Play(optContainer, {Size = UDim2.new(1, 0, 0, h)}, 0.2)
+                        Tween.Play(frame, {Size = UDim2.new(1, 0, 0, totalH)}, 0.2)
+                    end
+                end)
                 
                 for i, opt in ipairs(options) do
                     local optBtn = Instance.new("TextButton")
@@ -1401,7 +1451,7 @@ function Library:CreateWindow(config)
                     optBtn.BackgroundTransparency = 0.5
                     optBtn.Text = ""
                     optBtn.AutoButtonColor = false
-                    optBtn.ZIndex = 21 -- Boost ZIndex
+                    optBtn.ZIndex = 21
                     optBtn.LayoutOrder = i
                     optBtn.Parent = optContainer
                     
@@ -1414,7 +1464,8 @@ function Library:CreateWindow(config)
                     optLbl.Font = Theme.Fonts.Body
                     optLbl.TextSize = Theme.TextSizes.Caption
                     optLbl.TextXAlignment = Enum.TextXAlignment.Left
-                    optLbl.ZIndex = 21 -- Boost ZIndex
+                    optLbl.ZIndex = 21
+                    optLbl.Active = false
                     optLbl.Parent = optBtn
                     
                     local check = Instance.new("TextLabel")
@@ -1424,7 +1475,8 @@ function Library:CreateWindow(config)
                     check.TextColor3 = Theme.Colors.Accent
                     check.Font = Theme.Fonts.Header
                     check.TextSize = 14
-                    check.ZIndex = 21 -- Boost ZIndex
+                    check.ZIndex = 21
+                    check.Active = false
                     check.Parent = optBtn
                     
                     local function updateCheck()
@@ -1443,11 +1495,18 @@ function Library:CreateWindow(config)
                             selected[opt] = not selected[opt] or nil
                         else
                             selected = opt
+                            -- Close dropdown
                             ddOpen = false
                             Tween.Play(arrow, {Rotation = 0}, 0.2)
                             Tween.Play(optContainer, {Size = UDim2.new(1, 0, 0, 0)}, 0.2)
                             Tween.Play(frame, {Size = UDim2.new(1, 0, 0, Theme.Sizes.DropdownHeight)}, 0.2)
-                            task.delay(0.2, function() optContainer.Visible = false end)
+                            Tween.Play(headerStroke, {Color = Theme.Colors.TextDim}, 0.2)
+                            task.delay(0.2, function()
+                                if not ddOpen then
+                                    optContainer.Visible = false
+                                    searchFrame.Visible = false
+                                end
+                            end)
                         end
                         for _, b in ipairs(optBtns) do b.updateCheck() end
                         valLbl.Text = getDisplayText()
@@ -1456,15 +1515,20 @@ function Library:CreateWindow(config)
                         if not s then warn("[FamyyPrivate] Dropdown error:", e) end
                     end))
                     
-                    table.insert(optBtns, {btn = optBtn, updateCheck = updateCheck})
+                    table.insert(optBtns, {btn = optBtn, val = opt, updateCheck = updateCheck})
                 end
                 
                 local function toggleDD()
                     ddOpen = not ddOpen
                     if ddOpen then
+                        searchFrame.Visible = true
                         optContainer.Visible = true
-                        local h = math.min(#options, maxVisible) * optHeight
-                        local totalH = Theme.Sizes.DropdownHeight + 4 + h + 2
+                        searchInput.Text = "" -- Reset search
+                        
+                        local visibleCount = updateSearch()
+                        local h = math.min(visibleCount, maxVisible) * optHeight
+                        local totalH = Theme.Sizes.DropdownHeight + 4 + searchHeight + h + 4
+                        
                         Tween.Play(arrow, {Rotation = 180}, 0.2)
                         Tween.Play(optContainer, {Size = UDim2.new(1, 0, 0, h)}, 0.2)
                         Tween.Play(frame, {Size = UDim2.new(1, 0, 0, totalH)}, 0.2)
@@ -1474,7 +1538,12 @@ function Library:CreateWindow(config)
                         Tween.Play(optContainer, {Size = UDim2.new(1, 0, 0, 0)}, 0.2)
                         Tween.Play(frame, {Size = UDim2.new(1, 0, 0, Theme.Sizes.DropdownHeight)}, 0.2)
                         Tween.Play(headerStroke, {Color = Theme.Colors.TextDim}, 0.2)
-                        task.delay(0.2, function() if not ddOpen then optContainer.Visible = false end end)
+                        task.delay(0.2, function()
+                            if not ddOpen then
+                                optContainer.Visible = false
+                                searchFrame.Visible = false
+                            end
+                        end)
                     end
                 end
                 
