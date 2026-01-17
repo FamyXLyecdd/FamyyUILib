@@ -139,10 +139,8 @@ local function FindButtons()
         if obj:IsA("BasePart") then
             if (obj.Position - LOCATIONS.ButtonRed).Magnitude < 5 then
                 RedButtonObj = obj
-                print("[FAMYY] Found Red Button at coords: " .. obj:GetFullName())
             elseif (obj.Position - LOCATIONS.ButtonGreen).Magnitude < 5 then
                 GreenButtonObj = obj
-                print("[FAMYY] Found Green Button at coords: " .. obj:GetFullName())
             end
         end
     end
@@ -297,6 +295,9 @@ local function StartAutoFarm()
                     if not _G.AutoFarm then break end
                     task.wait(0.1)
                 end
+                
+                -- Refresh buttons after teleporting back (handles streaming/unloading)
+                FindButtons()
                 
                 if not _G.AutoFarm then break end
                 
