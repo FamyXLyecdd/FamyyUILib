@@ -1386,10 +1386,10 @@ function Library:CreateWindow(config)
                 optContainer.ScrollBarImageColor3 = Theme.Colors.Accent
                 optContainer.CanvasSize = UDim2.new(0, 0, 0, #options * optHeight)
                 optContainer.Visible = false
-                optContainer.ZIndex = 10
+                optContainer.ZIndex = 20 -- Boost ZIndex
                 optContainer.Parent = frame
                 Instance.new("UICorner", optContainer).CornerRadius = Theme.Corners.Button
-                Instance.new("UIStroke", optContainer).Color = Theme.Colors.Accent
+                -- Removed UIStroke for cleaner look
                 Instance.new("UIListLayout", optContainer).SortOrder = Enum.SortOrder.LayoutOrder
                 
                 local optBtns = {}
@@ -1401,7 +1401,7 @@ function Library:CreateWindow(config)
                     optBtn.BackgroundTransparency = 0.5
                     optBtn.Text = ""
                     optBtn.AutoButtonColor = false
-                    optBtn.ZIndex = 11
+                    optBtn.ZIndex = 21 -- Boost ZIndex
                     optBtn.LayoutOrder = i
                     optBtn.Parent = optContainer
                     
@@ -1414,7 +1414,7 @@ function Library:CreateWindow(config)
                     optLbl.Font = Theme.Fonts.Body
                     optLbl.TextSize = Theme.TextSizes.Caption
                     optLbl.TextXAlignment = Enum.TextXAlignment.Left
-                    optLbl.ZIndex = 11
+                    optLbl.ZIndex = 21 -- Boost ZIndex
                     optLbl.Parent = optBtn
                     
                     local check = Instance.new("TextLabel")
@@ -1424,7 +1424,7 @@ function Library:CreateWindow(config)
                     check.TextColor3 = Theme.Colors.Accent
                     check.Font = Theme.Fonts.Header
                     check.TextSize = 14
-                    check.ZIndex = 11
+                    check.ZIndex = 21 -- Boost ZIndex
                     check.Parent = optBtn
                     
                     local function updateCheck()
