@@ -50,6 +50,7 @@ local LOCATIONS = {
 -- ============================================================================
 _G.AutoClickRed = false
 _G.AutoClickGreen = false
+_G.ExperimentalClick = false
 _G.AutoFarm = false
 _G.AutoUniverse = false
 _G.ClickSpeed = 0 -- 0 = max speed
@@ -218,6 +219,56 @@ end
 local function StopAutoClickGreen()
     if Connections.Green then Connections.Green:Disconnect() Connections.Green = nil end
     if Connections.GreenLoop then task.cancel(Connections.GreenLoop) Connections.GreenLoop = nil end
+end
+
+-- ============================================================================
+-- EXPERIMENTAL CLICKER (BYPASS & MULTI-THREAD)
+-- ============================================================================
+local function StartExperimentalClick()
+    if Connections.Experimental then return end
+    
+    -- Attempt to disable client-side cooldown scripts in buttons
+    local function DisableCooldowns(btn)
+        if not btn then return end
+        for _, child in pairs(btn:GetChildren()) do
+            if child:IsA("LocalScript") or child:IsA("Script") then
+                child.Disabled = true
+                -- child:Destroy() -- risky, disabling is safer
+            end
+        end
+    end
+    
+    if RedButtonObj then DisableCooldowns(RedButtonObj) end
+    if GreenButtonObj then DisableCooldowns(GreenButtonObj) end
+    
+    -- Launch multiple threads to overwhelm any debounces
+    local threads = 5
+    Connections.Experimental = {}
+    
+    for i = 1, threads do
+        Connections.Experimental[i] = task.spawn(function()
+            while _G.ExperimentalClick do
+                -- Click both if found
+                if RedButtonObj then ClickButton(RedButtonObj) end
+                if GreenButtonObj then ClickButton(GreenButtonObj) end
+                
+                if _G.ClickSpeed > 0 then
+                    task.wait(_G.ClickSpeed / 1000)
+                else
+                    RunService.Heartbeat:Wait()
+                end
+            end
+        end)
+    end
+end
+
+local function StopExperimentalClick()
+    if Connections.Experimental then
+        for _, thread in pairs(Connections.Experimental) do
+            task.cancel(thread)
+        end
+        Connections.Experimental = nil
+    end
 end
 
 -- ============================================================================
@@ -472,7 +523,36 @@ ClickSection:AddSlider({
 
 -- Experimental Tab
 local ExpTab = Window:CreateTab("Experimental")
--- Empty for now
+local ExpSection = ExpTab:CreateSection("Bypass Clicker", true)
+
+ExpSection:AddLabel({Text = "Bypasses 1s cooldown limit using multi-threading", Bold = false})
+ExpSection:AddLabel({Text = "WARNING: Disables standard Auto Clickers", Bold = true, Color = Color3.fromRGB(255, 100, 100)})
+
+ExpSection:AddToggle({
+    Label = "Experimental Auto Click (Red & Green)",
+    Default = false,
+    Callback = function(v)
+        if v then
+            -- Disable standard clickers to prevent conflicts
+            if _G.AutoClickRed then
+                _G.AutoClickRed = false
+                -- Note: Library might not update visual state if not triggered by UI, 
+                -- so we rely on the loop checking the global
+                StopAutoClickRed()
+            end
+            if _G.AutoClickGreen then
+                _G.AutoClickGreen = false
+                StopAutoClickGreen()
+            end
+            
+            _G.ExperimentalClick = true
+            StartExperimentalClick()
+        else
+            _G.ExperimentalClick = false
+            StopExperimentalClick()
+        end
+    end
+})
 
 -- Player Tab
 local PlayerTab = Window:CreateTab("Player")
