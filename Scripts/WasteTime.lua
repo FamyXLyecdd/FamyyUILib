@@ -454,6 +454,16 @@ local function StopNoClip()
 end
 
 -- ============================================================================
+-- ANTI AFK
+-- ============================================================================
+local VirtualUser = game:GetService("VirtualUser")
+LocalPlayer.Idled:Connect(function()
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new())
+    print("[FAMYY] Anti-AFK triggered")
+end)
+
+-- ============================================================================
 -- LOAD UI LIBRARY
 -- ============================================================================
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/FamyXLyecdd/FamyyUILib/main/FamyyLib.lua"))()
