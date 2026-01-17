@@ -6,13 +6,13 @@
     ╚███╔███╔╝██║  ██║███████║   ██║   ███████╗       ██║   ██║██║ ╚═╝ ██║███████╗
      ╚══╝╚══╝ ╚═╝  ╚═╝╚══════╝   ╚═╝   ╚══════╝       ╚═╝   ╚═╝╚═╝     ╚═╝╚══════╝
     
-    FAMYY PRIVATE - Waste Time Script v2.0
+    FAMYY PRIVATE - Waste Time Script v2.1
     
     UPDATED FEATURES:
-    - Auto Convert (Teleport & Return)
-    - Targeted Auto Click (Red/Green at coords)
-    - Auto Farm (Convert -> Highest Area)
-    - Auto Universe
+    - Auto Farm (Smart Highest Area Detection)
+    - Auto Universe (Logic: 100 Qitg + Scaling)
+    - Consolidated Auto Farm Tab
+    - Position Check & Re-Teleport
 ]]
 
 -- ============================================================================
@@ -37,25 +37,14 @@ local LOCATIONS = {
     ButtonGreen = Vector3.new(-93.95, 2.62, 32.50),
     Universe = Vector3.new(1220.26, 86.92, -2841.28),
     Areas = {
+        -- Base Areas
         {Name = "10M Need", Pos = Vector3.new(3.34, 51.12, 31.20), Req = 1e7},
         {Name = "1Sx Need", Pos = Vector3.new(2043.22, 1391.01, -2877.51), Req = 1e21},
         {Name = "1Td Need", Pos = Vector3.new(1491.23, 1348.27, -2120.77), Req = 1e42},
-        {Name = "1Tvg Need", Pos = Vector3.new(1676.76, 381.59, -2850.33), Req = 1e72}
+        {Name = "1Tvg Need", Pos = Vector3.new(1676.76, 381.59, -2850.33), Req = 1e72},
+        -- Add more areas here if coordinates are known. 
+        -- For now, the script will select the best from this list.
     }
-}
-
--- ============================================================================
--- REMOTES
--- ============================================================================
-local Remotes = {
-    PlayerEvent = ReplicatedStorage:FindFirstChild("PlayerEvent"),
-    ClientHeartbeat = ReplicatedStorage:FindFirstChild("ClientHeartbeat"),
-    UpgradeEvent = ReplicatedStorage:FindFirstChild("UpgradeEvent"),
-    TeleportToZone = ReplicatedStorage:FindFirstChild("TeleportToZone"),
-    RankUpEvent = ReplicatedStorage:FindFirstChild("RankUpEvent"),
-    GlobalEonsFX = ReplicatedStorage:FindFirstChild("GlobalEonsFX"),
-    ButtonParticles = ReplicatedStorage:FindFirstChild("ButtonParticles"),
-    AuraRequest = ReplicatedStorage:FindFirstChild("AuraRequest"),
 }
 
 -- ============================================================================
@@ -63,15 +52,12 @@ local Remotes = {
 -- ============================================================================
 _G.AutoClickRed = false
 _G.AutoClickGreen = false
-_G.AutoConvert = false
 _G.AutoFarm = false
 _G.AutoUniverse = false
-_G.AutoUpgrade = false
 _G.ClickSpeed = 0 -- 0 = max speed
 _G.Fly = false
 _G.NoClip = false
 _G.Speed = 16
-_G.SelectedArea = LOCATIONS.Areas[1]
 _G.ConvertInterval = 1
 
 -- ============================================================================
@@ -81,12 +67,32 @@ local function ParseValue(val)
     if type(val) == "number" then return val end
     if type(val) == "string" then
         local clean = val:gsub(",", "")
-        -- Check for suffixes
+        
+        -- Remove trailing 'B' if present (bug fix/compatibility)
+        if clean:sub(-1) == "B" then
+            clean = clean:sub(1, -2)
+        end
+        
+        -- Check for standard scientific notation first (e.g. 2.01e+28)
+        if clean:find("e%+") or clean:find("e%-") then
+            return tonumber(clean) or 0
+        end
+
+        -- Check for game suffixes
         local suffixes = {
             k = 1e3, m = 1e6, b = 1e9, t = 1e12, qa = 1e15, qi = 1e18, sx = 1e21, sp = 1e24, oc = 1e27, no = 1e30, dc = 1e33,
             ud = 1e36, dd = 1e39, td = 1e42, qatu = 1e45, qitu = 1e48, sxtu = 1e51, sptu = 1e54, octu = 1e57, notu = 1e60,
             vg = 1e63, uvg = 1e66, dvg = 1e69, tvg = 1e72, qavg = 1e75, qivg = 1e78, sxvg = 1e81, spvg = 1e84, ocvg = 1e87, novg = 1e90,
-            tg = 1e93, utg = 1e96, dtg = 1e99, ttg = 1e102, qatg = 1e105, qitg = 1e108 -- Quinquatrigintillion?
+            tg = 1e93, utg = 1e96, dtg = 1e99, ttg = 1e102, qatg = 1e105, qitg = 1e108,
+            -- Add more from screenshot if needed
+            octg = 1e243, -- Estimation based on standard suffix logic
+            uqag = 1e246,
+            qiqag = 1e258,
+            ocqag = 1e267,
+            dqig = 1e279, -- ??
+            sxqig = 1e282, -- ??
+            sxg = 1e303, -- ??
+            tsxg = 1e306 -- ??
         }
         
         -- Extract numeric part and suffix
@@ -110,6 +116,18 @@ local function GetPlayerStat(statName)
     return 0
 end
 
+local function GetBestArea()
+    local myTime = GetPlayerStat("Time")
+    local best = LOCATIONS.Areas[1]
+    
+    for _, area in ipairs(LOCATIONS.Areas) do
+        if myTime >= area.Req then
+            best = area
+        end
+    end
+    return best
+end
+
 -- ============================================================================
 -- FIND BUTTONS
 -- ============================================================================
@@ -122,10 +140,8 @@ local function FindButtons()
         if obj:IsA("BasePart") then
             if (obj.Position - LOCATIONS.ButtonRed).Magnitude < 5 then
                 RedButtonObj = obj
-                print("[FAMYY] Found Red Button at coords: " .. obj:GetFullName())
             elseif (obj.Position - LOCATIONS.ButtonGreen).Magnitude < 5 then
                 GreenButtonObj = obj
-                print("[FAMYY] Found Green Button at coords: " .. obj:GetFullName())
             end
         end
     end
@@ -137,7 +153,6 @@ end
 local function ClickButton(button)
     if not button then return end
     
-    -- Method 1: ClickDetector
     local clickDetector = button:FindFirstChildOfClass("ClickDetector") or 
                           (button:IsA("Model") and button:FindFirstChildOfClass("ClickDetector", true)) or
                           (button.Parent and button.Parent:FindFirstChildOfClass("ClickDetector"))
@@ -147,7 +162,6 @@ local function ClickButton(button)
         end)
     end
     
-    -- Method 2: TouchInterest
     if button:IsA("BasePart") and firetouchinterest then
         local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         if hrp then
@@ -160,18 +174,11 @@ local function ClickButton(button)
 end
 
 local function ClickRed()
-    if RedButtonObj then
-        ClickButton(RedButtonObj)
-    else
-        -- Fallback if object not found (try blindly firing nearby)
-        -- Can't really do much without the object instance for ClickDetector
-    end
+    if RedButtonObj then ClickButton(RedButtonObj) end
 end
 
 local function ClickGreen()
-    if GreenButtonObj then
-        ClickButton(GreenButtonObj)
-    end
+    if GreenButtonObj then ClickButton(GreenButtonObj) end
 end
 
 -- ============================================================================
@@ -181,23 +188,13 @@ local Connections = {}
 
 local function StartAutoClickRed()
     if Connections.Red then return end
-    
-    -- RenderStepped for frame-perfect clicks
     Connections.Red = RunService.RenderStepped:Connect(function()
-        if _G.AutoClickRed then
-            ClickRed()
-        end
+        if _G.AutoClickRed then ClickRed() end
     end)
-    
-    -- Parallel Loop for speed
     Connections.RedLoop = task.spawn(function()
         while _G.AutoClickRed do
             ClickRed()
-            if _G.ClickSpeed > 0 then
-                task.wait(_G.ClickSpeed / 1000)
-            else
-                RunService.Heartbeat:Wait() -- Minimum wait if 0 to prevent crash, or just execute
-            end
+            if _G.ClickSpeed > 0 then task.wait(_G.ClickSpeed / 1000) else RunService.Heartbeat:Wait() end
         end
     end)
 end
@@ -209,21 +206,13 @@ end
 
 local function StartAutoClickGreen()
     if Connections.Green then return end
-    
     Connections.Green = RunService.RenderStepped:Connect(function()
-        if _G.AutoClickGreen then
-            ClickGreen()
-        end
+        if _G.AutoClickGreen then ClickGreen() end
     end)
-    
     Connections.GreenLoop = task.spawn(function()
         while _G.AutoClickGreen do
             ClickGreen()
-            if _G.ClickSpeed > 0 then
-                task.wait(_G.ClickSpeed / 1000)
-            else
-                RunService.Heartbeat:Wait()
-            end
+            if _G.ClickSpeed > 0 then task.wait(_G.ClickSpeed / 1000) else RunService.Heartbeat:Wait() end
         end
     end)
 end
@@ -234,7 +223,7 @@ local function StopAutoClickGreen()
 end
 
 -- ============================================================================
--- AUTO FARM (CONVERT -> SELECTED AREA)
+-- AUTO FARM (CONVERT -> BEST AREA -> WAIT)
 -- ============================================================================
 local function StartAutoFarm()
     if Connections.AutoFarm then return end
@@ -246,7 +235,7 @@ local function StartAutoFarm()
                 -- 1. Teleport to Convert
                 hrp.CFrame = CFrame.new(LOCATIONS.Convert)
                 
-                -- Wait for configured interval (for conversion to happen/accumulate)
+                -- Wait for configured interval
                 local steps = math.floor(_G.ConvertInterval * 10)
                 for i = 1, steps do
                     if not _G.AutoFarm then break end
@@ -255,13 +244,21 @@ local function StartAutoFarm()
                 
                 if not _G.AutoFarm then break end
                 
-                -- 2. Teleport to Selected Area
-                if _G.SelectedArea and _G.SelectedArea.Pos then
-                    hrp.CFrame = CFrame.new(_G.SelectedArea.Pos)
+                -- 2. Teleport to Highest Area
+                local bestArea = GetBestArea()
+                if bestArea and bestArea.Pos then
+                    hrp.CFrame = CFrame.new(bestArea.Pos)
+                    
+                    -- 3. Wait 20 seconds at area (ensure position)
+                    local endTime = tick() + 20
+                    while tick() < endTime and _G.AutoFarm do
+                        -- Position Check
+                        if (hrp.Position - bestArea.Pos).Magnitude > 10 then
+                            hrp.CFrame = CFrame.new(bestArea.Pos)
+                        end
+                        task.wait(0.5)
+                    end
                 end
-                
-                -- Wait 1 second at the area before loop restarts (teleporting back to convert)
-                task.wait(1)
             else
                 task.wait(1)
             end
@@ -294,7 +291,7 @@ local function StartAutoUniverse()
                 local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
                 if hrp then
                     hrp.CFrame = CFrame.new(LOCATIONS.Universe)
-                    
+                    task.wait(0.5)
                     -- Interact with ProximityPrompt
                     for _, obj in pairs(Workspace:GetDescendants()) do
                         if obj:IsA("ProximityPrompt") then
@@ -340,17 +337,14 @@ local function StartFly()
     
     Connections.Fly = RunService.RenderStepped:Connect(function()
         if not _G.Fly then return end
-        
         local camera = Workspace.CurrentCamera
         local moveDir = Vector3.new(0, 0, 0)
-        
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camera.CFrame.LookVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - camera.CFrame.LookVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - camera.CFrame.RightVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camera.CFrame.RightVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0, 1, 0) end
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir = moveDir - Vector3.new(0, 1, 0) end
-        
         bv.Velocity = moveDir.Magnitude > 0 and moveDir.Unit * 100 or Vector3.new(0, 0, 0)
         bg.CFrame = camera.CFrame
     end)
@@ -395,10 +389,33 @@ local Window = Library.Window
 -- UI SETUP
 -- ============================================================================
 
--- Auto Click Tab
-local ClickTab = Window:CreateTab("Auto Click")
+-- Auto Farm Tab (Renamed from Auto Click)
+local FarmTab = Window:CreateTab("Auto Farm")
 
-local ClickSection = ClickTab:CreateSection("Button Clicker", true)
+-- Auto Farm Section (Moved to top)
+local FarmSection = FarmTab:CreateSection("Auto Farm", true)
+
+FarmSection:AddSlider({
+    Label = "Convert Interval (s)",
+    Min = 1,
+    Max = 120,
+    Default = 1,
+    Callback = function(v)
+        _G.ConvertInterval = v
+    end
+})
+
+FarmSection:AddToggle({
+    Label = "Enable Auto Farm",
+    Default = false,
+    Callback = function(v)
+        _G.AutoFarm = v
+        if v then StartAutoFarm() else StopAutoFarm() end
+    end
+})
+
+-- Clicker Section (Moved below)
+local ClickSection = FarmTab:CreateSection("Auto Clicker", true)
 
 ClickSection:AddLabel({Text = "Targets Red/Green buttons at specific coords", Bold = false})
 
@@ -430,56 +447,11 @@ ClickSection:AddSlider({
     end
 })
 
-local ConvertSection = ClickTab:CreateSection("Convert & Farm", true)
-
--- Removed Auto Convert (Teleport & Return) as requested
-
--- Area Dropdown for Auto Farm
-local areaNames = {}
-for _, area in ipairs(LOCATIONS.Areas) do
-    table.insert(areaNames, area.Name)
-end
-
-ConvertSection:AddDropdown({
-    Label = "Select Highest Area",
-    Options = areaNames,
-    Default = areaNames[1],
-    Callback = function(v)
-        for _, area in ipairs(LOCATIONS.Areas) do
-            if area.Name == v then
-                _G.SelectedArea = area
-                break
-            end
-        end
-    end
-})
-
-ConvertSection:AddSlider({
-    Label = "Convert Interval (s)",
-    Min = 1,
-    Max = 120,
-    Default = 1,
-    Callback = function(v)
-        _G.ConvertInterval = v
-    end
-})
-
-ConvertSection:AddToggle({
-    Label = "Auto Farm (Convert -> Area)",
-    Default = false,
-    Callback = function(v)
-        _G.AutoFarm = v
-        if v then StartAutoFarm() else StopAutoFarm() end
-    end
-})
-
--- Removed Stats Monitor as requested
-
 -- Universe Tab
 local UniverseTab = Window:CreateTab("Universe")
 local UniverseSection = UniverseTab:CreateSection("Universe / Godliness", true)
 
-UniverseSection:AddLabel({Text = "Teleports when > 100 Qitg * (1 + Univ*0.0005)", Bold = false})
+UniverseSection:AddLabel({Text = "Rebirths when requirements met", Bold = false})
 
 UniverseSection:AddToggle({
     Label = "Auto Universe Loop",
@@ -569,7 +541,6 @@ ServerSection:AddButton({
 
 FindButtons()
 
--- Keep speed updated
 RunService.Heartbeat:Connect(function()
     if _G.Speed > 16 then
         local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
@@ -577,7 +548,6 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- Character respawn handler
 LocalPlayer.CharacterAdded:Connect(function(char)
     Character = char
     task.wait(1)
