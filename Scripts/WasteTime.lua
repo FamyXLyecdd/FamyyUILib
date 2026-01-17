@@ -57,7 +57,7 @@ _G.ClickSpeed = 0 -- 0 = max speed
 _G.Fly = false
 _G.NoClip = false
 _G.Speed = 16
-_G.ConvertInterval = 1
+_G.ConvertInterval = 5
 
 -- ============================================================================
 -- HELPER FUNCTIONS
@@ -302,6 +302,13 @@ local function StartAutoFarm()
                     local endTime = tick() + _G.ConvertInterval
                     
                     while tick() < endTime and _G.AutoFarm do
+                        -- Dynamic Update: Check if we unlocked a better area while farming
+                        local currentBest = GetBestArea()
+                        if currentBest and currentBest.Req > bestArea.Req then
+                            bestArea = currentBest -- Update target
+                            hrp.CFrame = CFrame.new(bestArea.Pos) -- Teleport immediately
+                        end
+
                         -- Position Check: Enforce position if pushed/drifted
                         if (hrp.Position - bestArea.Pos).Magnitude > 10 then
                             hrp.CFrame = CFrame.new(bestArea.Pos)
@@ -452,7 +459,7 @@ FarmSection:AddSlider({
     Label = "Convert Interval (s)",
     Min = 1,
     Max = 120,
-    Default = 1,
+    Default = 5,
     Callback = function(v)
         _G.ConvertInterval = v
     end
