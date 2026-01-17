@@ -133,41 +133,38 @@ end
 local RedButtonObj = nil
 local GreenButtonObj = nil
 
-local function GetButtonAt(location)
-    -- Efficiently find button at location using spatial query
-    local parts = Workspace:GetPartBoundsInRadius(location, 5)
-    for _, part in ipairs(parts) do
-        if part:IsA("BasePart") then
-            -- Verify it has a ClickDetector or is named appropriately if needed
-            -- For now, consistent with original logic: just proximity
-            return part
+local function FindButtons()
+    -- Search by coordinates
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            if (obj.Position - LOCATIONS.ButtonRed).Magnitude < 5 then
+                RedButtonObj = obj
+                print("[FAMYY] Found Red Button at coords: " .. obj:GetFullName())
+            elseif (obj.Position - LOCATIONS.ButtonGreen).Magnitude < 5 then
+                GreenButtonObj = obj
+                print("[FAMYY] Found Green Button at coords: " .. obj:GetFullName())
+            end
         end
     end
-    return nil
-end
-
-local function FindButtons()
-    RedButtonObj = GetButtonAt(LOCATIONS.ButtonRed)
-    GreenButtonObj = GetButtonAt(LOCATIONS.ButtonGreen)
-    
-    if RedButtonObj then print("[FAMYY] Found Red Button") end
-    if GreenButtonObj then print("[FAMYY] Found Green Button") end
 end
 
 -- ============================================================================
 -- CLICK FUNCTIONS
 -- ============================================================================
 local function ClickButton(button)
-    if not button or not button.Parent then return end
+    if not button then return end
     
+    -- Method 1: ClickDetector
     local clickDetector = button:FindFirstChildOfClass("ClickDetector") or 
                           (button:IsA("Model") and button:FindFirstChildOfClass("ClickDetector", true)) or
                           (button.Parent and button.Parent:FindFirstChildOfClass("ClickDetector"))
-    
     if clickDetector then
-        pcall(function() fireclickdetector(clickDetector) end)
+        pcall(function()
+            fireclickdetector(clickDetector)
+        end)
     end
     
+    -- Method 2: TouchInterest
     if button:IsA("BasePart") and firetouchinterest then
         local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         if hrp then
@@ -180,18 +177,15 @@ local function ClickButton(button)
 end
 
 local function ClickRed()
-    -- Re-validate button if missing (e.g. streamed out and back in)
-    if not RedButtonObj or not RedButtonObj.Parent then
-        RedButtonObj = GetButtonAt(LOCATIONS.ButtonRed)
+    if RedButtonObj then
+        ClickButton(RedButtonObj)
     end
-    if RedButtonObj then ClickButton(RedButtonObj) end
 end
 
 local function ClickGreen()
-    if not GreenButtonObj or not GreenButtonObj.Parent then
-        GreenButtonObj = GetButtonAt(LOCATIONS.ButtonGreen)
+    if GreenButtonObj then
+        ClickButton(GreenButtonObj)
     end
-    if GreenButtonObj then ClickButton(GreenButtonObj) end
 end
 
 -- ============================================================================
@@ -262,9 +256,9 @@ local function StartExperimentalClick()
     for i = 1, threads do
         Connections.Experimental[i] = task.spawn(function()
             while _G.ExperimentalClick do
-                -- Click both if found (re-validating inside loop)
-                ClickRed()
-                ClickGreen()
+                -- Click both if found
+                if RedButtonObj then ClickButton(RedButtonObj) end
+                if GreenButtonObj then ClickButton(GreenButtonObj) end
                 
                 if _G.ClickSpeed > 0 then
                     task.wait(_G.ClickSpeed / 1000)
