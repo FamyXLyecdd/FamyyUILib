@@ -1,11 +1,11 @@
 --[[
     FAMYY PRIVATE v1.0 - Showcase Script (Self-Contained)
     Run this script to record the showcase video.
-    Includes the FULL Library source code directly to avoid 404/Cache issues and ensure 1:1 match.
+    Includes the FULL Library source code with Dropdown and UI Fixes.
 ]]
 
 -- ============================================================================
--- EMBEDDED LIBRARY START (EXACT COPY OF FamyyLib.lua)
+-- EMBEDDED LIBRARY START
 -- ============================================================================
 local Library = (function()
 --[[
@@ -108,7 +108,7 @@ local Theme = {
         TabBarHeight = 32,
         CollapsibleHeader = 36,
         ToggleHeight = 36,
-        SliderHeight = 50,
+        SliderHeight = 60,
         ButtonHeight = 36,
         DropdownHeight = 36,
         InputHeight = 36,
@@ -326,11 +326,24 @@ function Library:CreateWindow(config)
     -- Container with clipping
     local Container = Instance.new("Frame")
     Container.Name = "Container"
-    Container.Size = UDim2.new(1, 0, 1, 0)
+    Container.Size = UDim2.new(1, 0, 1, -22)
     Container.BackgroundTransparency = 1
     Container.ClipsDescendants = true
     Container.Parent = Main
     Instance.new("UICorner", Container).CornerRadius = Theme.Corners.Window
+    
+    -- Footer
+    local Footer = Instance.new("TextLabel")
+    Footer.Name = "Footer"
+    Footer.Size = UDim2.new(1, -12, 0, 14)
+    Footer.Position = UDim2.new(0, 0, 1, -16)
+    Footer.BackgroundTransparency = 1
+    Footer.Text = "Made By Famy"
+    Footer.TextColor3 = Theme.Colors.TextMuted
+    Footer.Font = Theme.Fonts.Caption
+    Footer.TextSize = 10
+    Footer.TextXAlignment = Enum.TextXAlignment.Right
+    Footer.Parent = Main
     
     
     -- Custom dragging system (works when minimized too)
@@ -1307,7 +1320,7 @@ function Library:CreateWindow(config)
                 local frame = Instance.new("Frame")
                 frame.Size = UDim2.new(1, 0, 0, Theme.Sizes.DropdownHeight)
                 frame.BackgroundTransparency = 1
-                frame.ClipsDescendants = false
+                frame.ClipsDescendants = true
                 frame.Parent = contentContainer
                 
                 local header = Instance.new("TextButton")
@@ -1433,6 +1446,7 @@ function Library:CreateWindow(config)
                             ddOpen = false
                             Tween.Play(arrow, {Rotation = 0}, 0.2)
                             Tween.Play(optContainer, {Size = UDim2.new(1, 0, 0, 0)}, 0.2)
+                            Tween.Play(frame, {Size = UDim2.new(1, 0, 0, Theme.Sizes.DropdownHeight)}, 0.2)
                             task.delay(0.2, function() optContainer.Visible = false end)
                         end
                         for _, b in ipairs(optBtns) do b.updateCheck() end
@@ -1450,12 +1464,15 @@ function Library:CreateWindow(config)
                     if ddOpen then
                         optContainer.Visible = true
                         local h = math.min(#options, maxVisible) * optHeight
+                        local totalH = Theme.Sizes.DropdownHeight + 4 + h + 2
                         Tween.Play(arrow, {Rotation = 180}, 0.2)
                         Tween.Play(optContainer, {Size = UDim2.new(1, 0, 0, h)}, 0.2)
+                        Tween.Play(frame, {Size = UDim2.new(1, 0, 0, totalH)}, 0.2)
                         Tween.Play(headerStroke, {Color = Theme.Colors.Accent}, 0.2)
                     else
                         Tween.Play(arrow, {Rotation = 0}, 0.2)
                         Tween.Play(optContainer, {Size = UDim2.new(1, 0, 0, 0)}, 0.2)
+                        Tween.Play(frame, {Size = UDim2.new(1, 0, 0, Theme.Sizes.DropdownHeight)}, 0.2)
                         Tween.Play(headerStroke, {Color = Theme.Colors.TextDim}, 0.2)
                         task.delay(0.2, function() if not ddOpen then optContainer.Visible = false end end)
                     end
