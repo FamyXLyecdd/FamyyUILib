@@ -67,12 +67,12 @@ _G.AutoConvert = false
 _G.AutoFarm = false
 _G.AutoUniverse = false
 _G.AutoUpgrade = false
-_G.AutoDetectArea = false
 _G.ClickSpeed = 0 -- 0 = max speed
 _G.Fly = false
 _G.NoClip = false
 _G.Speed = 16
 _G.SelectedArea = LOCATIONS.Areas[1]
+_G.ConvertInterval = 1
 
 -- ============================================================================
 -- HELPER FUNCTIONS
@@ -80,16 +80,32 @@ _G.SelectedArea = LOCATIONS.Areas[1]
 local function ParseValue(val)
     if type(val) == "number" then return val end
     if type(val) == "string" then
-        -- Remove non-numeric characters except ., +, -, e
-        local clean = val:gsub("[^0-9%.%+%-e]", "")
-        return tonumber(clean) or 0
+        local clean = val:gsub(",", "")
+        -- Check for suffixes
+        local suffixes = {
+            k = 1e3, m = 1e6, b = 1e9, t = 1e12, qa = 1e15, qi = 1e18, sx = 1e21, sp = 1e24, oc = 1e27, no = 1e30, dc = 1e33,
+            ud = 1e36, dd = 1e39, td = 1e42, qatu = 1e45, qitu = 1e48, sxtu = 1e51, sptu = 1e54, octu = 1e57, notu = 1e60,
+            vg = 1e63, uvg = 1e66, dvg = 1e69, tvg = 1e72, qavg = 1e75, qivg = 1e78, sxvg = 1e81, spvg = 1e84, ocvg = 1e87, novg = 1e90,
+            tg = 1e93, utg = 1e96, dtg = 1e99, ttg = 1e102, qatg = 1e105, qitg = 1e108 -- Quinquatrigintillion?
+        }
+        
+        -- Extract numeric part and suffix
+        local numStr, suffix = clean:match("([%d%.]+)(%a+)")
+        if not numStr then numStr = clean:match("([%d%.]+)") end
+        
+        local num = tonumber(numStr) or 0
+        if suffix then
+            local mul = suffixes[suffix:lower()]
+            if mul then num = num * mul end
+        end
+        return num
     end
     return 0
 end
 
-local function GetPlayerTime()
-    if LocalPlayer.leaderstats and LocalPlayer.leaderstats:FindFirstChild("Time") then
-        return ParseValue(LocalPlayer.leaderstats.Time.Value)
+local function GetPlayerStat(statName)
+    if LocalPlayer.leaderstats and LocalPlayer.leaderstats:FindFirstChild(statName) then
+        return ParseValue(LocalPlayer.leaderstats[statName].Value)
     end
     return 0
 end
@@ -218,44 +234,7 @@ local function StopAutoClickGreen()
 end
 
 -- ============================================================================
--- AUTO CONVERT (TELEPORT & RETURN)
--- ============================================================================
-local function StartAutoConvert()
-    if Connections.Convert then return end
-    
-    Connections.Convert = task.spawn(function()
-        while _G.AutoConvert do
-            local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                local lastCFrame = hrp.CFrame
-                
-                -- Teleport to Convert
-                hrp.CFrame = CFrame.new(LOCATIONS.Convert)
-                
-                -- Wait for convert
-                task.wait(0.5)
-                
-                -- Return
-                if _G.AutoConvert then -- Check if still enabled
-                    hrp.CFrame = lastCFrame
-                end
-            end
-            
-            -- Wait 60 seconds (default)
-            for i = 1, 60 do
-                if not _G.AutoConvert then break end
-                task.wait(1)
-            end
-        end
-    end)
-end
-
-local function StopAutoConvert()
-    if Connections.Convert then task.cancel(Connections.Convert) Connections.Convert = nil end
-end
-
--- ============================================================================
--- AUTO FARM (CONVERT -> HIGHEST AREA)
+-- AUTO FARM (CONVERT -> SELECTED AREA)
 -- ============================================================================
 local function StartAutoFarm()
     if Connections.AutoFarm then return end
@@ -264,22 +243,15 @@ local function StartAutoFarm()
         while _G.AutoFarm do
             local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
             if hrp then
-                -- 0. Check Best Area if Auto Detect is on (before convert)
-                if _G.AutoDetectArea then
-                    local myTime = GetPlayerTime()
-                    local best = LOCATIONS.Areas[1]
-                    for _, area in ipairs(LOCATIONS.Areas) do
-                        if myTime >= area.Req then
-                            best = area
-                        end
-                    end
-                    _G.SelectedArea = best
-                    -- Update dropdown visual if possible (library dependent)
-                end
-
                 -- 1. Teleport to Convert
                 hrp.CFrame = CFrame.new(LOCATIONS.Convert)
-                task.wait(1)
+                
+                -- Wait for configured interval (for conversion to happen/accumulate)
+                local steps = math.floor(_G.ConvertInterval * 10)
+                for i = 1, steps do
+                    if not _G.AutoFarm then break end
+                    task.wait(0.1)
+                end
                 
                 if not _G.AutoFarm then break end
                 
@@ -288,7 +260,7 @@ local function StartAutoFarm()
                     hrp.CFrame = CFrame.new(_G.SelectedArea.Pos)
                 end
                 
-                -- Wait 1 second
+                -- Wait 1 second at the area before loop restarts (teleporting back to convert)
                 task.wait(1)
             else
                 task.wait(1)
@@ -309,22 +281,34 @@ local function StartAutoUniverse()
     
     Connections.AutoUniverse = task.spawn(function()
         while _G.AutoUniverse do
-            local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                hrp.CFrame = CFrame.new(LOCATIONS.Universe)
-                
-                -- Try to interact with anything nearby (ProximityPrompt)
-                for _, obj in pairs(Workspace:GetDescendants()) do
-                    if obj:IsA("ProximityPrompt") then
-                        if obj.Parent and obj.Parent:IsA("BasePart") then
-                            if (obj.Parent.Position - LOCATIONS.Universe).Magnitude < 15 then
-                                fireproximityprompt(obj)
+            local universes = GetPlayerStat("Universes")
+            local time = GetPlayerStat("Time")
+            
+            -- Formula: Target = 100 Qitg * (1 + (Universes * 0.0005))
+            -- 100 Qitg = 100 * 1e108 = 1e110
+            local baseReq = 1e110 
+            local multiplier = 1 + (universes * 0.0005)
+            local target = baseReq * multiplier
+            
+            if time >= target then
+                local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    hrp.CFrame = CFrame.new(LOCATIONS.Universe)
+                    
+                    -- Interact with ProximityPrompt
+                    for _, obj in pairs(Workspace:GetDescendants()) do
+                        if obj:IsA("ProximityPrompt") then
+                            if obj.Parent and obj.Parent:IsA("BasePart") then
+                                if (obj.Parent.Position - LOCATIONS.Universe).Magnitude < 15 then
+                                    fireproximityprompt(obj)
+                                end
                             end
                         end
                     end
                 end
             end
-            task.wait(1) -- Check loop
+            
+            task.wait(1) -- Check every second
         end
     end)
 end
@@ -448,14 +432,7 @@ ClickSection:AddSlider({
 
 local ConvertSection = ClickTab:CreateSection("Convert & Farm", true)
 
-ConvertSection:AddToggle({
-    Label = "Auto Convert (Teleport & Return - 60s)",
-    Default = false,
-    Callback = function(v)
-        _G.AutoConvert = v
-        if v then StartAutoConvert() else StopAutoConvert() end
-    end
-})
+-- Removed Auto Convert (Teleport & Return) as requested
 
 -- Area Dropdown for Auto Farm
 local areaNames = {}
@@ -471,18 +448,19 @@ ConvertSection:AddDropdown({
         for _, area in ipairs(LOCATIONS.Areas) do
             if area.Name == v then
                 _G.SelectedArea = area
-                _G.AutoDetectArea = false -- Disable auto if manual select
                 break
             end
         end
     end
 })
 
-ConvertSection:AddToggle({
-    Label = "Auto Detect Best Area (Uses Time)",
-    Default = false,
+ConvertSection:AddSlider({
+    Label = "Convert Interval (s)",
+    Min = 1,
+    Max = 120,
+    Default = 1,
     Callback = function(v)
-        _G.AutoDetectArea = v
+        _G.ConvertInterval = v
     end
 })
 
@@ -495,23 +473,13 @@ ConvertSection:AddToggle({
     end
 })
 
--- Stat Monitor
-ConvertSection:AddLabel({Text = "Stats Monitor", Bold = true})
-task.spawn(function()
-    while true do
-        if LocalPlayer.leaderstats and LocalPlayer.leaderstats:FindFirstChild("Time") then
-            -- This is just for debug/info, library might not support dynamic label updates easily
-            -- but we assume the user checks the game UI
-        end
-        task.wait(1)
-    end
-end)
+-- Removed Stats Monitor as requested
 
 -- Universe Tab
 local UniverseTab = Window:CreateTab("Universe")
 local UniverseSection = UniverseTab:CreateSection("Universe / Godliness", true)
 
-UniverseSection:AddLabel({Text = "Teleports to Universe area for reset/godliness", Bold = false})
+UniverseSection:AddLabel({Text = "Teleports when > 100 Qitg * (1 + Univ*0.0005)", Bold = false})
 
 UniverseSection:AddToggle({
     Label = "Auto Universe Loop",
