@@ -22,6 +22,10 @@
         Section:AddToggle({Label = "Feature", Callback = function(v) print(v) end})
     ]]
 
+-- [[ PROTECTED CREDIT - DO NOT REMOVE ]]
+local _0x9f2a={80,114,111,112,101,114,116,121,32,111,102,32,90,97,121,110,70,97,109,121,32,45,32,70,97,109,121,121,32,80,114,105,118,97,116,101};local function _0x1c3()local _0x4b="";for _,_0x8d in ipairs(_0x9f2a)do _0x4b=_0x4b..string.char(_0x8d)end;warn(_0x4b)end;task.spawn(_0x1c3);
+-- [[ END PROTECTED CREDIT ]]
+
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
