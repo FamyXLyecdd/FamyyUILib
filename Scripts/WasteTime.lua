@@ -491,6 +491,41 @@ FarmSection:AddToggle({
 -- Universe Section (Moved to Farm Tab)
 local UniverseSection = FarmTab:CreateSection("Auto Universe", true)
 
+-- Disabled Overlay (Gray layout with lock)
+local function CreateDisabledOverlay(parent)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 100)
+    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    frame.BackgroundTransparency = 0
+    frame.Parent = parent
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+    
+    local stroke = Instance.new("UIStroke", frame)
+    stroke.Color = Color3.fromRGB(60, 60, 65)
+    stroke.Thickness = 1
+    
+    local lock = Instance.new("ImageLabel")
+    lock.Size = UDim2.new(0, 32, 0, 32)
+    lock.Position = UDim2.new(0.5, -16, 0.5, -20)
+    lock.BackgroundTransparency = 1
+    lock.Image = "rbxassetid://3926305904" -- Lock icon
+    lock.ImageColor3 = Color3.fromRGB(150, 150, 160)
+    lock.Parent = frame
+    
+    local txt = Instance.new("TextLabel")
+    txt.Size = UDim2.new(1, 0, 0, 20)
+    txt.Position = UDim2.new(0, 0, 0.5, 15)
+    txt.BackgroundTransparency = 1
+    txt.Text = "FEATURE DISABLED"
+    txt.TextColor3 = Color3.fromRGB(150, 150, 160)
+    txt.Font = Enum.Font.GothamBold
+    txt.TextSize = 12
+    txt.Parent = frame
+end
+
+CreateDisabledOverlay(UniverseSection.Container)
+
+--[[ Temporarily Disabled
 UniverseSection:AddLabel({Text = "Rebirths when requirements met", Bold = false})
 
 UniverseSection:AddToggle({
@@ -512,6 +547,7 @@ UniverseSection:AddButton({
         end
     end
 })
+]]
 
 -- Clicker Section
 local ClickSection = FarmTab:CreateSection("Auto Clicker", true)
