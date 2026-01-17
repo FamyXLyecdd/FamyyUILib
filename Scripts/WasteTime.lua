@@ -37,13 +37,11 @@ local LOCATIONS = {
     ButtonGreen = Vector3.new(-93.95, 2.62, 32.50),
     Universe = Vector3.new(1220.26, 86.92, -2841.28),
     Areas = {
-        -- Base Areas
-        {Name = "10M Need", Pos = Vector3.new(3.34, 51.12, 31.20), Req = 1e7},
-        {Name = "1Sx Need", Pos = Vector3.new(2043.22, 1391.01, -2877.51), Req = 1e21},
-        {Name = "1Td Need", Pos = Vector3.new(1491.23, 1348.27, -2120.77), Req = 1e42},
-        {Name = "1Tvg Need", Pos = Vector3.new(1676.76, 381.59, -2850.33), Req = 1e72},
-        -- Add more areas here if coordinates are known. 
-        -- For now, the script will select the best from this list.
+        -- Base Areas (Sorted by Requirement Ascending)
+        {Name = "1M Need",   Pos = Vector3.new(3.34, 51.12, 31.20),        Req = 1e6},
+        {Name = "1Sx Need",  Pos = Vector3.new(2043.22, 1391.01, -2877.51), Req = 1e21},
+        {Name = "1Td Need",  Pos = Vector3.new(1491.23, 1348.27, -2120.77), Req = 1e42},
+        {Name = "1Tvg Need", Pos = Vector3.new(1676.76, 381.59, -2850.33),  Req = 1e72},
     }
 }
 
@@ -414,7 +412,32 @@ FarmSection:AddToggle({
     end
 })
 
--- Clicker Section (Moved below)
+-- Universe Section (Moved to Farm Tab)
+local UniverseSection = FarmTab:CreateSection("Auto Universe", true)
+
+UniverseSection:AddLabel({Text = "Rebirths when requirements met", Bold = false})
+
+UniverseSection:AddToggle({
+    Label = "Auto Universe Loop",
+    Default = false,
+    Callback = function(v)
+        _G.AutoUniverse = v
+        if v then StartAutoUniverse() else StopAutoUniverse() end
+    end
+})
+
+UniverseSection:AddButton({
+    Label = "Teleport to Universe Once",
+    Style = "primary",
+    Callback = function()
+        local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.CFrame = CFrame.new(LOCATIONS.Universe)
+        end
+    end
+})
+
+-- Clicker Section
 local ClickSection = FarmTab:CreateSection("Auto Clicker", true)
 
 ClickSection:AddLabel({Text = "Targets Red/Green buttons at specific coords", Bold = false})
@@ -447,31 +470,9 @@ ClickSection:AddSlider({
     end
 })
 
--- Universe Tab
-local UniverseTab = Window:CreateTab("Universe")
-local UniverseSection = UniverseTab:CreateSection("Universe / Godliness", true)
-
-UniverseSection:AddLabel({Text = "Rebirths when requirements met", Bold = false})
-
-UniverseSection:AddToggle({
-    Label = "Auto Universe Loop",
-    Default = false,
-    Callback = function(v)
-        _G.AutoUniverse = v
-        if v then StartAutoUniverse() else StopAutoUniverse() end
-    end
-})
-
-UniverseSection:AddButton({
-    Label = "Teleport to Universe Once",
-    Style = "primary",
-    Callback = function()
-        local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            hrp.CFrame = CFrame.new(LOCATIONS.Universe)
-        end
-    end
-})
+-- Experimental Tab
+local ExpTab = Window:CreateTab("Experimental")
+-- Empty for now
 
 -- Player Tab
 local PlayerTab = Window:CreateTab("Player")
