@@ -284,9 +284,8 @@ local function StartAutoFarm()
                 -- 1. Teleport to Convert
                 hrp.CFrame = CFrame.new(LOCATIONS.Convert)
                 
-                -- Wait for configured interval
-                local steps = math.floor(_G.ConvertInterval * 10)
-                for i = 1, steps do
+                -- Wait briefly for convert to register (1 second fixed)
+                for i = 1, 10 do 
                     if not _G.AutoFarm then break end
                     task.wait(0.1)
                 end
@@ -298,15 +297,20 @@ local function StartAutoFarm()
                 if bestArea and bestArea.Pos then
                     hrp.CFrame = CFrame.new(bestArea.Pos)
                     
-                    -- 3. Wait 20 seconds at area (ensure position)
-                    local endTime = tick() + 20
+                    -- 3. Farm for the Configured Interval
+                    -- This ensures we stay at the farming area for the set time
+                    local endTime = tick() + _G.ConvertInterval
+                    
                     while tick() < endTime and _G.AutoFarm do
-                        -- Position Check
+                        -- Position Check: Enforce position if pushed/drifted
                         if (hrp.Position - bestArea.Pos).Magnitude > 10 then
                             hrp.CFrame = CFrame.new(bestArea.Pos)
                         end
                         task.wait(0.5)
                     end
+                else
+                    -- If no area found, wait a bit to prevent crashing/spamming
+                    task.wait(1)
                 end
             else
                 task.wait(1)
