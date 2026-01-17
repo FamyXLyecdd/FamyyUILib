@@ -9,7 +9,7 @@
 
 -- Load the Library (Simulated for this script)
 -- Replace the line below with your actual loadstring URL when releasing
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/YourUser/YourRepo/main/FamyyLib.lua"))() 
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/FamyXLyecdd/FamyyUILib/main/FamyyLib.lua"))() 
 -- For local testing if the above fails (comment out the above and uncomment below if using file execution):
 -- local Library = loadstring(readfile("FamyyLib.lua"))()
 
