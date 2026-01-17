@@ -6,7 +6,7 @@
     ██║     ███████╗╚██████╔╝╚██████╔╝   ██║       ██║     ██║  ██║██║ ╚████╔╝ ██║  ██║   ██║   ███████╗
     ╚═╝     ╚══════╝ ╚═════╝  ╚═════╝    ╚═╝       ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═══╝  ╚═╝  ╚═╝   ╚═╝   ╚══════╝
     
-    FAMYY PRIVATE v9.0 - Modular UI Library
+    FAMYY PRIVATE v1.0 - Modular UI Library
     
     A professional Roblox UI library for script developers.
     Features modular architecture, settings persistence, and extensive component library.
@@ -20,7 +20,7 @@
         local Tab = Window:CreateTab("Main")
         local Section = Tab:CreateSection("Features")
         Section:AddToggle({Label = "Feature", Callback = function(v) print(v) end})
-]]
+    ]]
 
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
@@ -146,12 +146,41 @@ local Theme = {
     },
 }
 
+-- Theme Presets
+local Themes = {
+    ["Famyy Purple"] = {
+        Accent = Color3.fromRGB(130, 90, 255),
+        AccentDim = Color3.fromRGB(100, 70, 200),
+        AccentHover = Color3.fromRGB(150, 110, 255)
+    },
+    ["Azure Blue"] = {
+        Accent = Color3.fromRGB(0, 170, 255),
+        AccentDim = Color3.fromRGB(0, 120, 200),
+        AccentHover = Color3.fromRGB(50, 190, 255)
+    },
+    ["Emerald Green"] = {
+        Accent = Color3.fromRGB(0, 255, 120),
+        AccentDim = Color3.fromRGB(0, 200, 90),
+        AccentHover = Color3.fromRGB(50, 255, 150)
+    },
+    ["Crimson Red"] = {
+        Accent = Color3.fromRGB(255, 60, 60),
+        AccentDim = Color3.fromRGB(200, 40, 40),
+        AccentHover = Color3.fromRGB(255, 90, 90)
+    },
+    ["Sunset Orange"] = {
+        Accent = Color3.fromRGB(255, 140, 0),
+        AccentDim = Color3.fromRGB(200, 100, 0),
+        AccentHover = Color3.fromRGB(255, 170, 50)
+    }
+}
+
 -- ============================================================================
 -- LIBRARY
 -- ============================================================================
 
 local Library = {
-    Version = "9.0",
+    Version = "1.0",
     Theme = Theme,
     Windows = {},
 }
@@ -1985,6 +2014,21 @@ function Library:SetThemeColor(key, color)
     end
 end
 
+--[[
+    Sets a predefined theme
+    @param themeName string
+]]
+function Library:SetTheme(themeName)
+    local theme = Themes[themeName]
+    if theme then
+        for key, color in pairs(theme) do
+            Library:SetThemeColor(key, color)
+        end
+        return true
+    end
+    return false
+end
+
 -- ============================================================================
 -- PERMANENT INITIALIZATION - FAMYY CATEGORY
 -- ============================================================================
@@ -2004,6 +2048,18 @@ Dashboard:AddProfile({UserId = Players.LocalPlayer.UserId})
 -- Status section with real-time stats
 local Status = FamyTab:CreateSection("Status", true)
 Status:AddStatGrid()
+
+-- Theme Customization
+local Customization = FamyTab:CreateSection("Customization", true)
+Customization:AddDropdown({
+    Label = "Interface Theme",
+    Options = {"Famyy Purple", "Azure Blue", "Emerald Green", "Crimson Red", "Sunset Orange"},
+    Default = "Famyy Purple",
+    Callback = function(val)
+        Library:SetTheme(val)
+        Win.Notify("Theme Updated", "Switched to " .. val, 2, "info")
+    end
+})
 
 -- Socials section with Discord
 local Socials = FamyTab:CreateSection("Socials", true)
